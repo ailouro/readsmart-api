@@ -1,2 +1,4 @@
 *
 !.gitignore
+!story_pages/
+!story_pages/**
