@@ -1,0 +1,378 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\SchoolClass;
+use App\Models\Student;
+use App\Models\StudentProgress;
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use App\Models\Mispronunciation;
+
+class ClassEnrollmentController extends Controller
+{
+    // ➕ 1. TEACHER: CREATE NEW CLASS WITH CODE
+    public function createClass(Request $request)
+    {
+        $request->validate([
+            'teacher_id'  => 'required|exists:users,id',
+            'name'        => 'required|string|max:255',
+            'grade_level' => 'required|in:Grade 5,Grade 6',
+        ]);
+
+        // Generate unique code (e.g. G5-READ-9102)
+        $prefix = $request->grade_level === 'Grade 5' ? 'G5' : 'G6';
+        do {
+            $classCode = $prefix . '-READ-' . rand(1000, 9999);
+        } while (SchoolClass::where('class_code', $classCode)->exists());
+
+        $schoolClass = SchoolClass::create([
+            'teacher_id'  => $request->teacher_id,
+            'name'        => $request->name,
+            'grade_level' => $request->grade_level,
+            'class_code'  => $classCode,
+        ]);
+
+        return response()->json([
+            'message'    => 'Class created successfully!',
+            'class_data' => $schoolClass,
+        ], 201);
+    }
+
+    // 🔗 2. PARENT: ENROLL CHILD VIA CLASS CODE
+    public function enrollParent(Request $request)
+    {
+        $request->validate([
+            'parent_id'    => 'required|exists:users,id',
+            'class_code'   => 'required|string',
+            'student_name' => 'required|string|max:255',
+        ]);
+
+        // Hanapin ang Class batay sa Class Code
+        $schoolClass = SchoolClass::where('class_code', $request->class_code)->first();
+
+        if (!$schoolClass) {
+            return response()->json([
+                'message' => 'Invalid Class Code. Please check with the teacher.',
+            ], 404);
+        }
+
+        // Lumikha o i-update ang Student Record
+        $student = Student::firstOrCreate(
+            [
+                'parent_id'   => $request->parent_id,
+                'name'        => $request->student_name,
+            ],
+            [
+                'grade_level' => $schoolClass->grade_level,
+            ]
+        );
+
+        // I-attach ang student sa class sa pivot table
+        $schoolClass->students()->syncWithoutDetaching([$student->id]);
+
+        return response()->json([
+            'message'      => 'Student successfully enrolled in class!',
+            'student_name' => $student->name,
+            'class_name'   => $schoolClass->name,
+            'grade_level'  => $schoolClass->grade_level,
+            'class_code'   => $schoolClass->class_code,
+        ], 200);
+    }
+
+    public function logMispronunciation(Request $request)
+{
+    // 🔍 TEMPORARY DEBUG LOG — remove once the bug is confirmed fixed.
+    \Illuminate\Support\Facades\Log::info('logMispronunciation HIT', [
+        'all_input' => $request->all(),
+        'has_words_json' => $request->has('words_json'),
+        'ip' => $request->ip(),
+    ]);
+
+    // 🛠️ FIX: The Flutter app (story_view_screen.dart) sends word data as
+    // a JSON-encoded string field called 'words_json' (via a
+    // MultipartRequest), NOT as a real 'words' array field — 'words[]' is
+    // actually sent as file parts, which $request->validate() cannot see.
+    // Validating 'words' as required|array always failed silently (422),
+    // so no Mispronunciation rows were ever created. Read 'words_json'
+    // instead, matching what the app actually transmits.
+    $validated = $request->validate([
+        'student_id' => 'required|integer',
+        'story_id' => 'required|exists:stories,id',
+        'words_json' => 'required|string',
+    ]);
+
+    $words = json_decode($validated['words_json'], true);
+
+    if (!is_array($words) || empty($words)) {
+        return response()->json([
+            'message' => 'words_json must be a non-empty JSON array of {word, total_attempts} objects.',
+        ], 422);
+    }
+
+    foreach ($words as $wordData) {
+        $word = is_array($wordData) ? ($wordData['word'] ?? null) : $wordData;
+        if (!$word) {
+            continue;
+        }
+
+        Mispronunciation::create([
+            'student_id' => $validated['student_id'],
+            'story_id' => $validated['story_id'],
+            'word' => strtolower($word),
+            'total_attempts' => is_array($wordData) ? ($wordData['total_attempts'] ?? 1) : 1,
+        ]);
+    }
+
+    return response()->json([
+        'message' => 'Mispronunciations recorded successfully'
+    ], 201);
+}
+
+    public function getStudentMispronunciations($student_id)
+{
+    $logs = Mispronunciation::where('student_id', $student_id)
+        ->orderBy('created_at', 'desc')
+        ->get();
+
+    return response()->json([
+        'status' => 'success',
+        'data'   => $logs
+    ], 200);
+}
+
+// 📊 GET ALL MISPRONUNCIATION LOGS FOR TEACHER DASHBOARD
+    public function getTeacherStudentLogs($teacher_id)
+    {
+        $logs = Mispronunciation::whereHas('student.classes', function ($query) use ($teacher_id) {
+            $query->where('teacher_id', $teacher_id);
+        })
+        ->selectRaw('student_id, story_id, word, MAX(created_at) as created_at, COUNT(*) as total_attempts')
+        ->groupBy('student_id', 'story_id', 'word')
+        ->with(['student', 'story'])
+        ->orderByRaw('MAX(created_at) DESC')
+        ->get();
+        
+        return response()->json([
+            'data' => $logs
+        ], 200);
+    }
+
+public function getTeacherDashboardSummary($teacher_id)
+{
+    // 1. Fetch classes using the PROVEN Eloquent relationship
+    // and eager-load the students' progress and associated stories.
+    $classes = \App\Models\SchoolClass::where('teacher_id', $teacher_id)
+        ->with(['students' => function($query) {
+            $query->with(['progress' => function($q) {
+                $q->orderBy('created_at', 'desc');
+            }, 'progress.story']);
+        }])
+        ->get();
+
+    // 2. Extract unique students (prevents duplicates if a student is in multiple classes)
+    $students = collect();
+    foreach ($classes as $class) {
+        foreach ($class->students as $student) {
+            if (!$students->contains('id', $student->id)) {
+                // Tag the class this student was found under so the
+                // Flutter dashboard can group learners by their actual
+                // class instead of guessing from grade_level alone.
+                $student->setAttribute('class_id', $class->id);
+                $student->setAttribute('class_name', $class->name);
+                $students->push($student);
+            }
+        }
+    }
+    
+    // 3. Pluck the correct User IDs for the stats query
+    $studentIds = $students->pluck('id')->toArray();
+
+    // 4. Calculate Phil-IRI stats from the verified list, split by
+    // test_type (pre_test vs post_test) so the dashboard can show a
+    // before/after comparison instead of one merged count.
+    $rawStats = \App\Models\StudentProgress::whereIn('user_id', $studentIds)
+        ->selectRaw('LOWER(reading_level) as level, LOWER(test_type) as test_type, count(*) as count')
+        ->whereNotNull('reading_level')
+        ->groupBy('level', 'test_type')
+        ->get();
+
+    $preTestStats = ['frustration' => 0, 'instructional' => 0, 'independent' => 0];
+    $postTestStats = ['frustration' => 0, 'instructional' => 0, 'independent' => 0];
+
+    foreach ($rawStats as $row) {
+        if ($row->test_type === 'pre_test' && isset($preTestStats[$row->level])) {
+            $preTestStats[$row->level] = (int) $row->count;
+        } elseif ($row->test_type === 'post_test' && isset($postTestStats[$row->level])) {
+            $postTestStats[$row->level] = (int) $row->count;
+        }
+    }
+
+    // 5. Return the JSON structure the Flutter app expects.
+    // frustration_count / instructional_count / independent_count are kept
+    // (now as pre+post combined) so older app builds don't break; pre_test
+    // and post_test are the new breakdown used by the updated dashboard.
+    return response()->json([
+        'frustration_count' => $preTestStats['frustration'] + $postTestStats['frustration'],
+        'instructional_count' => $preTestStats['instructional'] + $postTestStats['instructional'],
+        'independent_count' => $preTestStats['independent'] + $postTestStats['independent'],
+        'pre_test' => $preTestStats,
+        'post_test' => $postTestStats,
+        'students' => $students->values() // ->values() resets the array keys for Flutter ListView
+    ], 200);
+}
+    // 📊 3. TEACHER: FETCH ALL CLASSES WITH ENROLLED STUDENTS
+    public function getTeacherClasses($teacher_id)
+    {
+        $classes = SchoolClass::with('students')
+            ->where('teacher_id', $teacher_id)
+            ->get();
+
+        return response()->json($classes, 200);
+    }
+
+    // Get all stories assigned to a specific class
+    public function getClassStories(Request $request, $classId)
+    {
+        $class = SchoolClass::with(['stories.quiz', 'stories.pages'])->findOrFail($classId);
+
+        $stories = $class->stories->map(function ($story) use ($request) {
+            $studentId = $request->query('student_id');
+            if ($studentId) {
+                // A story can be assigned to the SAME class as both a
+                // pre_test and a post_test (in two separate rows of the
+                // class_story pivot). Without filtering by test_type here,
+                // ->orderBy('id','desc')->first() would just grab whichever
+                // attempt happened most recently — usually the post_test —
+                // and show that score on both tiles. Match it to the
+                // test_type this particular story tile is assigned as.
+                $assignedTestType = $story->pivot->test_type ?? 'post_test';
+
+                $progress = \App\Models\StudentProgress::where('user_id', $studentId)
+                    ->where('story_id', $story->id)
+                    ->where('test_type', $assignedTestType)
+                    ->orderBy('id', 'desc')
+                    ->first();
+                $story->setAttribute('student_progress', $progress);
+            }
+            return $story;
+        });
+
+        return response()->json([
+            'success' => true,
+            'stories' => $stories
+        ], 200);
+    }
+
+// Assign an existing library story to a class
+public function assignStoryToClass(Request $request, $classId)
+{
+    $request->validate([
+        'story_id' => 'required',
+        'test_type' => 'nullable|in:pre_test,post_test',
+    ]);
+
+    $class = SchoolClass::findOrFail($classId);
+    $storyIds = is_array($request->story_id) ? $request->story_id : [$request->story_id];
+    $testType = $request->test_type ?? 'post_test';
+
+    // A story can be assigned to the SAME class twice — once as a
+    // pre_test and once as a post_test. syncWithoutDetaching() would
+    // instead UPDATE the single existing (class_id, story_id) pivot row,
+    // silently overwriting a pre_test assignment with post_test (or vice
+    // versa) instead of creating a second one. So attach() each story
+    // individually, guarded by an existence check on the exact
+    // (story_id, test_type) pair to avoid duplicate rows on repeat taps.
+    foreach ($storyIds as $storyId) {
+        $alreadyAssigned = $class->stories()
+            ->where('stories.id', $storyId)
+            ->wherePivot('test_type', $testType)
+            ->exists();
+
+        if (!$alreadyAssigned) {
+            $class->stories()->attach($storyId, ['test_type' => $testType]);
+        }
+    }
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Story assigned to class successfully!'
+    ], 200);
+}
+
+// Unassign a story from a class
+public function unassignStoryFromClass(Request $request, $classId)
+{
+    $request->validate([
+        'story_id' => 'required|exists:stories,id',
+        'test_type' => 'nullable|in:pre_test,post_test',
+    ]);
+
+    $class = SchoolClass::findOrFail($classId);
+
+    if ($request->filled('test_type')) {
+        // Detach only the specific pre_test/post_test assignment — a
+        // story assigned as both should keep the other one intact.
+        $class->stories()
+            ->wherePivot('test_type', $request->test_type)
+            ->detach($request->story_id);
+    } else {
+        // No test_type given (older app builds) — fall back to the old
+        // behavior of removing every assignment of this story.
+        $class->stories()->detach($request->story_id);
+    }
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Story unassigned from class successfully!'
+    ], 200);
+}
+
+public function saveProgress(Request $request)
+{
+    $validated = $request->validate([
+        'user_id' => 'required|exists:users,id',
+        'story_id' => 'required|exists:stories,id',
+        'quiz_score' => 'required|integer',
+        'total_questions' => 'required|integer',
+        'oral_fluency_accuracy' => 'required|numeric',
+        'time_on_task' => 'required|integer',
+        'wpm' => 'nullable|numeric|min:0',
+        'test_type' => 'required|string',
+    ]);
+
+    $quizPercent = $validated['total_questions'] > 0 
+        ? ($validated['quiz_score'] / $validated['total_questions']) * 100 
+        : 0;
+    $oralPercent = $validated['oral_fluency_accuracy'];
+
+    // Auto-classify Phil-IRI Reading Level
+    if ($oralPercent >= 97 && $quizPercent >= 80) {
+        $level = 'independent';
+    } elseif ($oralPercent >= 90 && $quizPercent >= 59) {
+        $level = 'instructional';
+    } else {
+        $level = 'frustration';
+    }
+
+    $progress = StudentProgress::create([
+        'user_id' => $validated['user_id'],
+        'story_id' => $validated['story_id'],
+        'quiz_score' => $validated['quiz_score'],
+        'total_questions' => $validated['total_questions'],
+        'oral_fluency_accuracy' => $validated['oral_fluency_accuracy'],
+        'reading_level' => $level,
+        'time_on_task' => $validated['time_on_task'],
+        'wpm' => $validated['wpm'] ?? null,
+        'test_type' => $validated['test_type'],
+    ]);
+
+    return response()->json([
+        'status' => 'success',
+        'data' => $progress,
+    ], 201);
+}
+
+
+}
