@@ -26,9 +26,15 @@ class ParentController extends Controller
                 ->map(function ($req) {
                     return [
                         'id' => $req->id,
-                        'message' => "Good news! {$req->student_name}'s account has been approved and is ready to use.",
+                        'message' => "Good news! {$req->student_name}'s account has been approved.",
                         'student_name' => $req->student_name,
                         'lrn' => $req->lrn,
+                        // Matches the hardcoded default set in
+                        // AdminController::approveStudentRequest and
+                        // ::createStudent. If that default ever changes,
+                        // update it here too so parents see the right
+                        // password.
+                        'password' => 'readsmart123',
                     ];
                 })
                 ->values();
