@@ -15,6 +15,7 @@ class StoryPage extends Model
         'image_path',
         'page_number',
         'audio_scripts', 
+        'audio_url',
     ];
 
     // 2. I-cast ang audio_scripts bilang array para hindi ito mag-error kapag ini-save sa database
