@@ -49,9 +49,12 @@ class StoryController extends Controller
 
         try {
             $coverPath = null;
-            if ($request->hasFile('cover_image')) {
-                $coverPath = $request->file('cover_image')->store('covers', 'public');
-            }
+if ($request->hasFile('cover_image')) {
+    $coverPath = cloudinary()->upload(
+        $request->file('cover_image')->getRealPath(),
+        ['folder' => 'covers']
+    )->getSecurePath();
+}
 
             $story = Story::create([
                 'title'       => $request->title,
@@ -71,7 +74,10 @@ class StoryController extends Controller
 
             if ($request->hasFile('pages')) {
                 foreach ($request->file('pages') as $index => $pageFile) {
-                    $pagePath = $pageFile->store('story_pages', 'public');
+    $pagePath = cloudinary()->upload(
+        $pageFile->getRealPath(),
+        ['folder' => 'story_pages']
+    )->getSecurePath();
 
                     $pageScripts = null;
                     if (isset($audioScripts[$index])) {
@@ -344,11 +350,8 @@ class StoryController extends Controller
 
             // Tanggalin ang mga page images sa storage
             foreach ($story->pages()->get() as $page) {
-                if ($page->image_path) {
-                    \Illuminate\Support\Facades\Storage::disk('public')->delete($page->image_path);
-                }
-                $page->delete();
-            }
+    $page->delete();
+}
 
             // Tanggalin ang mismong record sa database
             $story->delete();

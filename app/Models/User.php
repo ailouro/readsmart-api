@@ -12,16 +12,18 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail // <--
     use Notifiable;
 
     protected $fillable = [
-        'name',
-        'parent_id',
-        'email',
-        'lrn',
-        'password',
-        'role',
-        'grade_level',
-        'section',
-        'avatar',
-    ];
+    'name',
+    'first_name',
+    'last_name',
+    'parent_id',
+    'email',
+    'lrn',
+    'password',
+    'role',
+    'grade_level',
+    'section',
+    'avatar',
+];
 
     protected $hidden = [
         'password',
@@ -48,8 +50,25 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail // <--
         return $this->belongsToMany(SchoolClass::class, 'class_student', 'student_id', 'class_id')->withTimestamps();
     }
 
+    public function studentProfile()
+{
+    return $this->hasOne(Student::class, 'user_id');
+}
+
     public function progress()
     {
         return $this->hasMany(StudentProgress::class, 'user_id');
     }
+    protected static function boot()
+{
+    parent::boot();
+    // Keep the legacy 'name' column in sync whenever first_name/last_name
+    // are set, so every existing controller/Flutter screen reading
+    // 'name' keeps working without changes during this transition.
+    static::saving(function ($user) {
+        if ($user->first_name || $user->last_name) {
+            $user->name = trim("{$user->first_name} {$user->last_name}");
+        }
+    });
+}
 }

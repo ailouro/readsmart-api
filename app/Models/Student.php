@@ -10,10 +10,14 @@ class Student extends Model
     use HasFactory;
 
     protected $fillable = [
-        'parent_id',
-        'name',
-        'grade_level',
-    ];
+    'user_id',
+    'parent_id',
+    'name',
+    'first_name',
+    'last_name',
+    'grade_level',
+    'section',
+];
 
     public function classes()
     {
@@ -27,6 +31,10 @@ class Student extends Model
 public function schoolClasses()
 {
     return $this->belongsToMany(SchoolClass::class, 'class_student');
+}
+public function user()
+{
+    return $this->belongsTo(User::class, 'user_id');
 }
 
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Student;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -13,37 +14,40 @@ use Illuminate\Auth\Events\Verified;
 class AuthController extends Controller
 {
     public function register(Request $request)
-    {
-        if ($request->has('login') && !$request->has('email')) {
-            $request->merge(['email' => $request->input('login')]);
-        }
-
-        $request->validate([
-            'name' => 'required',
-            'email' => 'required|email|unique:users',
-            'password' => 'required|min:6'
-        ]);
-
-        $role = strtolower($request->input('role', 'student'));
-
-        $user = User::create([
-            'name' => $request->input('name'),
-            'email' => $request->input('email'),
-            'password' => Hash::make($request->input('password')),
-            'role' => $role
-        ]);
-
-        // 📧 TRIGGER EMAIL VERIFICATION KUNG TEACHER O PARENT LANG
-        if (in_array($role, ['teacher', 'parent'])) {
-            event(new Registered($user));
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Account created successfully!',
-            'user' => $user
-        ], 201);
+    
+{
+    if ($request->has('login') && !$request->has('email')) {
+        $request->merge(['email' => $request->input('login')]);
     }
+
+    $request->validate([
+        'first_name' => 'required|string',
+        'last_name' => 'required|string',
+        'email' => 'required|email|unique:users',
+        'password' => 'required|min:6'
+    ]);
+
+    $role = strtolower($request->input('role', 'student'));
+
+    $user = User::create([
+        'first_name' => $request->input('first_name'),
+        'last_name' => $request->input('last_name'),
+        'email' => $request->input('email'),
+        'password' => Hash::make($request->input('password')),
+        'role' => $role
+    ]);
+
+    // 📧 TRIGGER EMAIL VERIFICATION KUNG TEACHER O PARENT LANG
+    if (in_array($role, ['teacher', 'parent'])) {
+        event(new Registered($user));
+    }
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Account created successfully!',
+        'user' => $user
+    ], 201);
+}
 
     public function login(Request $request)
     {
@@ -190,23 +194,61 @@ class AuthController extends Controller
 
         // 2. I-save ang file sa storage/app/public/avatars
         if ($request->hasFile('avatar')) {
-            $file = $request->file('avatar');
-            $filename = time() . '_' . $user->id . '.' . $file->getClientOriginalExtension();
-            
-            // I-save sa 'avatars' folder
-            $path = $file->storeAs('avatars', $filename, 'public');
+    $file = $request->file('avatar');
 
-            // 3. I-update ang database record
-            $user->avatar = '/storage/' . $path;
-            $user->save();
+    $uploadedUrl = cloudinary()->upload($file->getRealPath(), [
+        'folder' => 'avatars',
+    ])->getSecurePath();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Profile picture updated successfully!',
-                'avatar_url' => url($user->avatar) // Ibibigay ang buong link (e.g. https://ngrok.../storage/avatars/...)
-            ]);
-        }
+    // 3. I-update ang database record
+    $user->avatar = $uploadedUrl;
+    $user->save();
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Profile picture updated successfully!',
+        'avatar_url' => $user->avatar
+    ]);
+}
 
         return response()->json(['success' => false, 'message' => 'Failed to upload image.'], 400);
     }
+
+    public function createStudent(Request $request)
+{
+    $request->validate([
+        'first_name' => 'required|string',
+        'last_name' => 'required|string',
+        'lrn' => 'required|unique:users',
+        'grade_level' => 'required',
+        'section' => 'required'
+    ]);
+
+    $student = User::create([
+        'first_name' => $request->first_name,
+        'last_name' => $request->last_name,
+        'lrn' => $request->lrn,
+        'grade_level' => $request->grade_level,
+        'section' => $request->section,
+        'role' => 'student',
+        'password' => Hash::make('readsmart123')
+    ]);
+
+    // Also create the linked profile row, so this student has a
+    // consistent record in `students` like every other learner does
+    // now, for any feature that reads from that table.
+    Student::create([
+        'user_id' => $student->id,
+        'first_name' => $request->first_name,
+        'last_name' => $request->last_name,
+        'name' => $student->name, // set by User's boot() hook on save
+        'grade_level' => $request->grade_level,
+        'section' => $request->section,
+    ]);
+
+    return response()->json([
+        'message' => 'Student created successfully',
+        'student' => $student
+    ]);
+}
 }

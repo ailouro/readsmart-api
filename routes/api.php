@@ -1,4 +1,5 @@
 <?php
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AlertController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\StoryController;
@@ -20,6 +21,7 @@ Route::post('/classes', [ClassEnrollmentController::class, 'createClass']);
 Route::get('/get-audio', [StoryAudioController::class, 'getAudio']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
+Route::post('/admin/students', [AdminController::class, 'createStudent']);
 Route::post('/student-mispronunciations', [ClassEnrollmentController::class, 'logMispronunciation']);
 Route::get('/students/{student_id}/mispronunciations', [ClassEnrollmentController::class, 'getStudentMispronunciations']);
 Route::post('/student/join-class', [StudentClassController::class, 'joinClass']);
@@ -53,6 +55,7 @@ Route::post('/parents/enroll', [ParentController::class, 'enroll']);
 Route::get('/parents/{parentId}/dashboard', [ParentController::class, 'dashboard']);
 Route::post('/student-self-corrections', [SelfCorrectionController::class, 'storeSelfCorrections']);
 Route::get('/teachers/{id}/self-corrections', [SelfCorrectionController::class, 'teacherSelfCorrections']);
+
 
 Route::get('/test', function () {
     return response()->json([
