@@ -41,9 +41,9 @@ class StoryController extends Controller
     {
         $request->validate([
             'title'         => 'required|string',
-            'cover_image'   => 'required|image',
-            'pages'         => 'required|array', 
-            'pages.*'       => 'image',
+            'cover_image'   => 'required|url',
+            'pages'         => 'required|url', 
+            'pages.*'       => 'url',
             'audio_scripts' => 'nullable',
         ]);
 
