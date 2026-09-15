@@ -5,12 +5,35 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\SchoolClass;
+use App\Models\StudentRequest;
 use App\Models\User;
 
 class ParentController extends Controller
 {
     public function dashboard($parentId)
     {
+        // Approved student-account requests this parent hasn't seen a
+        // notification for yet — surfaced regardless of whether a linked
+        // child already resolves below, since approving a request is what
+        // creates that linked child in the first place.
+        $parent = User::find($parentId);
+        $notifications = [];
+        if ($parent) {
+            $notifications = StudentRequest::where('parent_email', $parent->email)
+                ->where('status', 'approved')
+                ->whereNull('notified_at')
+                ->get()
+                ->map(function ($req) {
+                    return [
+                        'id' => $req->id,
+                        'message' => "Good news! {$req->student_name}'s account has been approved and is ready to use.",
+                        'student_name' => $req->student_name,
+                        'lrn' => $req->lrn,
+                    ];
+                })
+                ->values();
+        }
+
         // Find the student linked to this parent
         $student = User::where('parent_id', $parentId)->where('role', 'student')->first();
 
@@ -22,6 +45,7 @@ class ParentController extends Controller
                 'student_id'   => null,
                 'student_name' => null,
                 'classes'      => [],
+                'notifications' => $notifications,
             ], 200);
         }
 
@@ -41,7 +65,21 @@ class ParentController extends Controller
             'student_id'   => $student->id,
             'student_name' => $student->name,
             'classes'      => $classes,
+            'notifications' => $notifications,
         ], 200);
+    }
+
+    // Marks a notification as seen so it doesn't keep showing on every
+    // dashboard load. Called by the app right after the parent dismisses
+    // the "your child's account was approved" dialog.
+    public function dismissNotification($id)
+    {
+        $req = StudentRequest::find($id);
+        if ($req) {
+            $req->notified_at = now();
+            $req->save();
+        }
+        return response()->json(['success' => true]);
     }
 
     public function enroll(Request $request)
