@@ -14,40 +14,42 @@ use Illuminate\Auth\Events\Verified;
 class AuthController extends Controller
 {
     public function register(Request $request)
-    
-{
-    if ($request->has('login') && !$request->has('email')) {
-        $request->merge(['email' => $request->input('login')]);
+    {
+        if ($request->has('login') && !$request->has('email')) {
+            $request->merge(['email' => $request->input('login')]);
+        }
+
+        $request->validate([
+            'name' => 'required',
+            'email' => 'required|email|unique:users',
+            'password' => 'required|min:6'
+        ]);
+
+        $role = strtolower($request->input('role', 'student'));
+
+        $user = User::create([
+            'name' => $request->input('name'),
+            'email' => $request->input('email'),
+            'password' => Hash::make($request->input('password')),
+            'role' => $role
+        ]);
+
+        // ✅ NO LONGER SENDING VERIFICATION EMAIL — teacher/parent accounts
+        // are now approved manually by an admin via /admin/approvals instead.
+        // (Removed: event(new Registered($user)) — this was the source of
+        // the "server error" on parent/teacher signup, since email sending
+        // was failing before an admin domain was ever set up.)
+
+        $needsApproval = in_array($role, ['teacher', 'parent']);
+
+        return response()->json([
+            'success' => true,
+            'message' => $needsApproval
+                ? 'Account created! Please wait for admin approval before logging in.'
+                : 'Account created successfully!',
+            'user' => $user
+        ], 201);
     }
-
-    $request->validate([
-        'first_name' => 'required|string',
-        'last_name' => 'required|string',
-        'email' => 'required|email|unique:users',
-        'password' => 'required|min:6'
-    ]);
-
-    $role = strtolower($request->input('role', 'student'));
-
-    $user = User::create([
-        'first_name' => $request->input('first_name'),
-        'last_name' => $request->input('last_name'),
-        'email' => $request->input('email'),
-        'password' => Hash::make($request->input('password')),
-        'role' => $role
-    ]);
-
-    // 📧 TRIGGER EMAIL VERIFICATION KUNG TEACHER O PARENT LANG
-    if (in_array($role, ['teacher', 'parent'])) {
-        event(new Registered($user));
-    }
-
-    return response()->json([
-        'success' => true,
-        'message' => 'Account created successfully!',
-        'user' => $user
-    ], 201);
-}
 
     public function login(Request $request)
     {
@@ -68,7 +70,7 @@ class AuthController extends Controller
         if (in_array($user->role, ['teacher', 'parent'])) {
             if (!$user->hasVerifiedEmail()) {
                 return response()->json([
-                    'message' => 'Please verify your email address first. Check your inbox or spam folder.',
+                    'message' => 'Your account is pending admin approval. Please check back later or contact your school.',
                     'needs_verification' => true,
                     'email' => $user->email
                 ], 403);

@@ -22,6 +22,8 @@ Route::get('/get-audio', [StoryAudioController::class, 'getAudio']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/admin/students', [AdminController::class, 'createStudent']);
+Route::get('/admin/approvals', [AdminController::class, 'pendingApprovals']);
+Route::post('/admin/approvals/{id}/approve', [AdminController::class, 'approveAccount']);
 Route::post('/student-mispronunciations', [ClassEnrollmentController::class, 'logMispronunciation']);
 Route::get('/students/{student_id}/mispronunciations', [ClassEnrollmentController::class, 'getStudentMispronunciations']);
 Route::post('/student/join-class', [StudentClassController::class, 'joinClass']);
