@@ -145,19 +145,11 @@ class ParentController extends Controller
             ], 404);
         }
 
-<<<<<<< HEAD
-        // Find the existing student account by name. We still check this
-        // up front (instead of only at approval time) so the parent gets
-        // an immediate, specific error if the name doesn't match, rather
-        // than a request that silently sits pending forever.
-        $student = User::where('name', $request->student_name)
-=======
         // Find the existing student account by LRN instead of name. LRN is
         // unique per student (enforced in AdminController::createStudent),
         // so this can't cross-link to the wrong child the way a name match
         // could (typos, two students sharing a name, etc).
         $student = User::where('lrn', $request->lrn)
->>>>>>> 95ba97162e142c38fad629e828c458a06354c90d
                        ->where('role', 'student')
                        ->first();
 
@@ -179,9 +171,11 @@ class ParentController extends Controller
         }
 
         // Already has a pending request for this exact class? Don't spam
-        // the teacher with duplicates.
+        // the teacher with duplicates. Keyed on lrn (not student_name) for
+        // the same reason the student lookup above is — it's the value
+        // that's actually guaranteed unique per student.
         $existingPending = ClassJoinRequest::where('school_class_id', $schoolClass->id)
-            ->where('student_name', $student->name)
+            ->where('lrn', $student->lrn)
             ->where('status', 'pending')
             ->exists();
 
@@ -198,6 +192,7 @@ class ParentController extends Controller
         ClassJoinRequest::create([
             'parent_id'       => $request->parent_id,
             'student_name'    => $student->name,
+            'lrn'             => $student->lrn,
             'school_class_id' => $schoolClass->id,
             'status'          => 'pending',
         ]);
