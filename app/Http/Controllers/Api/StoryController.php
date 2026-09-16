@@ -36,25 +36,26 @@ class StoryController extends Controller
     
     /**
      * 🟢 Pag-upload ng Story at Images (Teacher / Admin Dashboard)
+     *
+     * NOTE: The Flutter app uploads images to Cloudinary itself and sends
+     * back plain secure_url strings for cover_image / pages — it does NOT
+     * send raw files anymore. This method must use those URLs directly,
+     * not re-upload via cloudinary()->upload() (that only works on actual
+     * uploaded files, which will never be present here).
      */
     public function store(Request $request)
     {
         $request->validate([
             'title'         => 'required|string',
             'cover_image'   => 'required|url',
-            'pages'         => 'required|url', 
+            'pages'         => 'required',
             'pages.*'       => 'url',
             'audio_scripts' => 'nullable',
         ]);
 
         try {
-            $coverPath = null;
-if ($request->hasFile('cover_image')) {
-    $coverPath = cloudinary()->upload(
-        $request->file('cover_image')->getRealPath(),
-        ['folder' => 'covers']
-    )->getSecurePath();
-}
+            // Cover image: already a Cloudinary URL sent by the app — use as-is.
+            $coverPath = $request->input('cover_image');
 
             $story = Story::create([
                 'title'       => $request->title,
@@ -72,32 +73,36 @@ if ($request->hasFile('cover_image')) {
                 }
             }
 
-            if ($request->hasFile('pages')) {
-                foreach ($request->file('pages') as $index => $pageFile) {
-    $pagePath = cloudinary()->upload(
-        $pageFile->getRealPath(),
-        ['folder' => 'story_pages']
-    )->getSecurePath();
-
-                    $pageScripts = null;
-                    if (isset($audioScripts[$index])) {
-                        $scriptValue = $audioScripts[$index];
-                        
-                        if (is_string($scriptValue)) {
-                            $decoded = json_decode($scriptValue, true);
-                            $pageScripts = (json_last_error() === JSON_ERROR_NONE) ? $decoded : $scriptValue;
-                        } else {
-                            $pageScripts = $scriptValue;
-                        }
-                    }
-
-                    StoryPage::create([
-                        'story_id'      => $story->id,
-                        'image_path'    => $pagePath,
-                        'page_number'   => $index + 1,
-                        'audio_scripts' => $pageScripts,
-                    ]);
+            // Pages: already Cloudinary URLs sent by the app (as pages[0],
+            // pages[1], ... which Laravel/PHP parses into an array under
+            // 'pages'). Fall back to decoding a JSON string just in case.
+            $pageUrls = $request->input('pages', []);
+            if (is_string($pageUrls)) {
+                $decodedPages = json_decode($pageUrls, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $pageUrls = $decodedPages;
                 }
+            }
+
+            foreach ($pageUrls as $index => $pageUrl) {
+                $pageScripts = null;
+                if (isset($audioScripts[$index])) {
+                    $scriptValue = $audioScripts[$index];
+
+                    if (is_string($scriptValue)) {
+                        $decoded = json_decode($scriptValue, true);
+                        $pageScripts = (json_last_error() === JSON_ERROR_NONE) ? $decoded : $scriptValue;
+                    } else {
+                        $pageScripts = $scriptValue;
+                    }
+                }
+
+                StoryPage::create([
+                    'story_id'      => $story->id,
+                    'image_path'    => $pageUrl,
+                    'page_number'   => $index + 1,
+                    'audio_scripts' => $pageScripts,
+                ]);
             }
 
             return response()->json([
