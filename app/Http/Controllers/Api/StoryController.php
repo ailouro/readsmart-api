@@ -45,11 +45,19 @@ class StoryController extends Controller
      */
     public function store(Request $request)
     {
+        // 'pages' arrives as a JSON-encoded string of Cloudinary URLs
+        // (e.g. '["https://...","https://..."]'), not a single URL and not
+        // an auto-merged array — so it's validated as a string here and
+        // JSON-decoded below.
         $request->validate([
             'title'         => 'required|string',
             'cover_image'   => 'required|url',
+<<<<<<< HEAD
             'pages'         => 'required',
             'pages.*'       => 'url',
+=======
+            'pages'         => 'required|string',
+>>>>>>> 95ba97162e142c38fad629e828c458a06354c90d
             'audio_scripts' => 'nullable',
         ]);
 
@@ -73,6 +81,7 @@ class StoryController extends Controller
                 }
             }
 
+<<<<<<< HEAD
             // Pages: already Cloudinary URLs sent by the app (as pages[0],
             // pages[1], ... which Laravel/PHP parses into an array under
             // 'pages'). Fall back to decoding a JSON string just in case.
@@ -81,7 +90,40 @@ class StoryController extends Controller
                 $decodedPages = json_decode($pageUrls, true);
                 if (json_last_error() === JSON_ERROR_NONE) {
                     $pageUrls = $decodedPages;
+=======
+            // Pages: the app sends this as a JSON-encoded string of
+            // Cloudinary URLs. Decode it; fall back to an empty list if
+            // it's somehow already an array or malformed.
+            $pageUrlsRaw = $request->input('pages', '[]');
+            if (is_string($pageUrlsRaw)) {
+                $decodedPages = json_decode($pageUrlsRaw, true);
+                $pageUrls = (json_last_error() === JSON_ERROR_NONE && is_array($decodedPages))
+                    ? $decodedPages
+                    : [];
+            } else {
+                $pageUrls = is_array($pageUrlsRaw) ? $pageUrlsRaw : [];
+            }
+
+            foreach ($pageUrls as $index => $pageUrl) {
+                $pageScripts = null;
+                if (isset($audioScripts[$index])) {
+                    $scriptValue = $audioScripts[$index];
+
+                    if (is_string($scriptValue)) {
+                        $decoded = json_decode($scriptValue, true);
+                        $pageScripts = (json_last_error() === JSON_ERROR_NONE) ? $decoded : $scriptValue;
+                    } else {
+                        $pageScripts = $scriptValue;
+                    }
+>>>>>>> 95ba97162e142c38fad629e828c458a06354c90d
                 }
+
+                StoryPage::create([
+                    'story_id'      => $story->id,
+                    'image_path'    => $pageUrl,
+                    'page_number'   => $index + 1,
+                    'audio_scripts' => $pageScripts,
+                ]);
             }
 
             foreach ($pageUrls as $index => $pageUrl) {

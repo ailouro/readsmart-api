@@ -132,9 +132,9 @@ class ParentController extends Controller
     public function enroll(Request $request)
     {
         $request->validate([
-            'parent_id'    => 'required|exists:users,id',
-            'class_code'   => 'required|string',
-            'student_name' => 'required|string|max:255',
+            'parent_id'  => 'required|exists:users,id',
+            'class_code' => 'required|string',
+            'lrn'        => 'required|string',
         ]);
 
         $schoolClass = SchoolClass::where('class_code', $request->class_code)->first();
@@ -145,17 +145,25 @@ class ParentController extends Controller
             ], 404);
         }
 
+<<<<<<< HEAD
         // Find the existing student account by name. We still check this
         // up front (instead of only at approval time) so the parent gets
         // an immediate, specific error if the name doesn't match, rather
         // than a request that silently sits pending forever.
         $student = User::where('name', $request->student_name)
+=======
+        // Find the existing student account by LRN instead of name. LRN is
+        // unique per student (enforced in AdminController::createStudent),
+        // so this can't cross-link to the wrong child the way a name match
+        // could (typos, two students sharing a name, etc).
+        $student = User::where('lrn', $request->lrn)
+>>>>>>> 95ba97162e142c38fad629e828c458a06354c90d
                        ->where('role', 'student')
                        ->first();
 
         if (!$student) {
             return response()->json([
-                'message' => 'Child account not found. Ensure they have a student account and the name matches perfectly.',
+                'message' => 'Child account not found. Please check the LRN and try again.',
             ], 404);
         }
 
