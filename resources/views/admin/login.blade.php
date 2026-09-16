@@ -1,4 +1,9 @@
-@php $tab = $tab ?? 'students'; @endphp
+@php
+    $tab = $tab ?? 'students';
+    $students = $students ?? collect();
+    $parents = $parents ?? collect();
+    $teachers = $teachers ?? collect();
+@endphp
 
 <!DOCTYPE html>
 <html lang="en">
