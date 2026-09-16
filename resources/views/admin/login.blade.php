@@ -1,3 +1,5 @@
+@php $tab = $tab ?? 'students'; @endphp
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
