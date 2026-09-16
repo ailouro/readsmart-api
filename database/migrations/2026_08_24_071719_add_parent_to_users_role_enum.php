@@ -4,14 +4,17 @@ use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
-    public function up()
+    public function up(): void
     {
-        // We use DB::statement because altering ENUMs using standard Blueprint methods can be tricky
-        DB::statement("ALTER TABLE users MODIFY COLUMN role ENUM('student', 'teacher', 'parent', 'admin') NOT NULL DEFAULT 'student'");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE users MODIFY COLUMN role ENUM('student', 'teacher', 'parent', 'admin') NOT NULL DEFAULT 'student'");
+        }
     }
 
-    public function down()
+    public function down(): void
     {
-        DB::statement("ALTER TABLE users MODIFY COLUMN role ENUM('student', 'teacher', 'admin') NOT NULL DEFAULT 'student'");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE users MODIFY COLUMN role ENUM('student', 'teacher', 'admin') NOT NULL DEFAULT 'student'");
+        }
     }
 };
