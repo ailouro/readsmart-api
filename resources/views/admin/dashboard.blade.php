@@ -51,6 +51,32 @@
         .pill-wait { background: #fef3c7; color: #b45309; }
         .flash { background: #dcfce7; border: 1px solid #86efac; color: #15803d; padding: 11px 14px; border-radius: 8px; margin-bottom: 18px; font-size: 14px; }
         code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+
+        .roster-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+        .grid-wrap { overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 8px; }
+        table.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
+        table.grid th {
+            background: #f8fafc; text-align: left; padding: 8px 10px; font-size: 12px;
+            color: #475569; border-bottom: 1px solid #e2e8f0; white-space: nowrap;
+        }
+        table.grid td { padding: 0; border-bottom: 1px solid #f1f5f9; }
+        table.grid td input {
+            width: 100%; border: 0; padding: 9px 10px; font-family: ui-monospace, Menlo, Consolas, monospace;
+            font-size: 13px; background: transparent; outline: none; box-sizing: border-box;
+        }
+        table.grid td input:focus { background: #eff6ff; }
+        table.grid tr:last-child td { border-bottom: 0; }
+        .grid-action-col { width: 34px; }
+        .row-remove {
+            width: 26px; height: 26px; border: 0; background: #fee2e2; color: #b91c1c;
+            border-radius: 6px; cursor: pointer; font-size: 15px; line-height: 1; margin: 0 8px;
+        }
+        .row-remove:hover { background: #fecaca; }
+        .btn-add-row {
+            margin-top: 10px; background: #e2e8f0; color: #334155; border: 0;
+            padding: 8px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 13px;
+        }
+        .btn-add-row:hover { background: #cbd5e1; }
     </style>
 </head>
 <body>
@@ -78,13 +104,41 @@
             <div class="panel">
                 <h2>Bulk create student accounts</h2>
                 <p class="hint">
-                    One student per line: <code>first_name, last_name, LRN, grade_level, section</code><br>
-                    Example: <code>Maria, Santos, 123456789012, Grade 5, Mabini</code><br>
+                    Fill in a row per student. You can also paste straight from a spreadsheet (Excel/Google Sheets) —
+                    select a block of cells there, copy, click the first cell below, and paste; it'll fill across and down automatically.<br>
                     Students log in using their <strong>LRN</strong>. Passwords are generated automatically and shown once on the printout.
                 </p>
-                <form method="POST" action="{{ route('admin.students.bulk') }}">
+                <form method="POST" action="{{ route('admin.students.bulk') }}" onsubmit="return syncRoster('student-grid', 'student-roster', 5)">
                     @csrf
-                    <textarea name="roster" placeholder="Maria, Santos, 123456789012, Grade 5, Mabini&#10;Jose, Cruz, 123456789013, Grade 5, Mabini"></textarea>
+                    <textarea name="roster" id="student-roster" class="roster-hidden"></textarea>
+                    <div class="grid-wrap">
+                        <table class="grid" id="student-grid" data-cols="5">
+                            <thead>
+                                <tr>
+                                    <th>First name</th>
+                                    <th>Last name</th>
+                                    <th>LRN</th>
+                                    <th>Grade level</th>
+                                    <th>Section</th>
+                                    <th class="grid-action-col"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for ($i = 0; $i < 3; $i++)
+                                    <tr>
+                                        <td><input type="text" placeholder="Maria"></td>
+                                        <td><input type="text" placeholder="Santos"></td>
+                                        <td><input type="text" placeholder="123456789012"></td>
+                                        <td><input type="text" placeholder="Grade 5"></td>
+                                        <td><input type="text" placeholder="Mabini"></td>
+                                        <td><button type="button" class="row-remove" onclick="removeGridRow(this)" title="Remove row">&times;</button></td>
+                                    </tr>
+                                @endfor
+                            </tbody>
+                        </table>
+                    </div>
+                    <button type="button" class="btn-add-row" onclick="addGridRow('student-grid', 5)">+ Add row</button>
+                    <br>
                     <button type="submit" class="btn">Create accounts &amp; print slips</button>
                 </form>
             </div>
@@ -123,13 +177,38 @@
             <div class="panel">
                 <h2>Bulk create parent accounts</h2>
                 <p class="hint">
-                    One parent per line: <code>first_name, last_name, email, child_LRN</code><br>
-                    Example: <code>Ana, Santos, ana.santos@gmail.com, 123456789012</code><br>
+                    Fill in a row per parent, or paste from a spreadsheet the same way as the Students tab.<br>
                     The child's LRN links this parent to an existing student, so <strong>create the student first</strong>. Parents log in using their <strong>email</strong>.
                 </p>
-                <form method="POST" action="{{ route('admin.parents.bulk') }}">
+                <form method="POST" action="{{ route('admin.parents.bulk') }}" onsubmit="return syncRoster('parent-grid', 'parent-roster', 4)">
                     @csrf
-                    <textarea name="roster" placeholder="Ana, Santos, ana.santos@gmail.com, 123456789012"></textarea>
+                    <textarea name="roster" id="parent-roster" class="roster-hidden"></textarea>
+                    <div class="grid-wrap">
+                        <table class="grid" id="parent-grid" data-cols="4">
+                            <thead>
+                                <tr>
+                                    <th>First name</th>
+                                    <th>Last name</th>
+                                    <th>Email</th>
+                                    <th>Child's LRN</th>
+                                    <th class="grid-action-col"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for ($i = 0; $i < 3; $i++)
+                                    <tr>
+                                        <td><input type="text" placeholder="Ana"></td>
+                                        <td><input type="text" placeholder="Santos"></td>
+                                        <td><input type="text" placeholder="ana.santos@gmail.com"></td>
+                                        <td><input type="text" placeholder="123456789012"></td>
+                                        <td><button type="button" class="row-remove" onclick="removeGridRow(this)" title="Remove row">&times;</button></td>
+                                    </tr>
+                                @endfor
+                            </tbody>
+                        </table>
+                    </div>
+                    <button type="button" class="btn-add-row" onclick="addGridRow('parent-grid', 4)">+ Add row</button>
+                    <br>
                     <button type="submit" class="btn">Create accounts &amp; print slips</button>
                 </form>
             </div>
@@ -208,5 +287,99 @@
             </div>
         @endif
     </div>
+
+    <script>
+        // ---- add / remove rows -------------------------------------------------
+        function addGridRow(gridId, cols) {
+            const tbody = document.querySelector('#' + gridId + ' tbody');
+            const tr = document.createElement('tr');
+            for (let i = 0; i < cols; i++) {
+                const td = document.createElement('td');
+                const input = document.createElement('input');
+                input.type = 'text';
+                td.appendChild(input);
+                tr.appendChild(td);
+            }
+            const actionTd = document.createElement('td');
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'row-remove';
+            btn.title = 'Remove row';
+            btn.innerHTML = '&times;';
+            btn.onclick = function () { removeGridRow(btn); };
+            actionTd.appendChild(btn);
+            tr.appendChild(actionTd);
+            tbody.appendChild(tr);
+        }
+
+        function removeGridRow(btn) {
+            const tbody = btn.closest('tbody');
+            if (tbody.rows.length > 1) {
+                btn.closest('tr').remove();
+            } else {
+                // keep at least one row, just clear it
+                btn.closest('tr').querySelectorAll('input').forEach(i => i.value = '');
+            }
+        }
+
+        // ---- serialize grid -> hidden textarea before submit -------------------
+        function syncRoster(gridId, textareaId, cols) {
+            const rows = document.querySelectorAll('#' + gridId + ' tbody tr');
+            const lines = [];
+            rows.forEach(row => {
+                const inputs = row.querySelectorAll('input');
+                const values = Array.from(inputs).map(i => i.value.trim());
+                if (values.some(v => v !== '')) {
+                    lines.push(values.join(', '));
+                }
+            });
+            document.getElementById(textareaId).value = lines.join('\n');
+            return true; // let the form submit
+        }
+
+        // ---- spreadsheet-style paste --------------------------------------------
+        // Paste a block copied from Excel/Google Sheets into any cell and it
+        // fills across columns (tab-separated) and down rows (newline-separated),
+        // adding grid rows automatically if the pasted block runs past the bottom.
+        document.querySelectorAll('table.grid').forEach(function (grid) {
+            const cols = parseInt(grid.dataset.cols, 10);
+            const gridId = grid.id;
+
+            grid.addEventListener('paste', function (e) {
+                const text = (e.clipboardData || window.clipboardData).getData('text');
+                if (!text || (!text.includes('\t') && !text.includes('\n'))) {
+                    return; // plain single value — let the browser paste normally
+                }
+                e.preventDefault();
+
+                const startInput = e.target;
+                const startTd = startInput.closest('td');
+                const startRow = startInput.closest('tr');
+                let startColIndex = Array.from(startRow.children).indexOf(startTd);
+                let startRowIndex = Array.from(grid.querySelector('tbody').children).indexOf(startRow);
+
+                const gridRows = text.replace(/\r/g, '').split('\n').filter((_, i, arr) =>
+                    !(i === arr.length - 1 && arr[i] === '') // drop trailing empty line
+                );
+
+                gridRows.forEach(function (lineText, r) {
+                    const targetRowIndex = startRowIndex + r;
+                    let tbody = grid.querySelector('tbody');
+                    while (tbody.children.length <= targetRowIndex) {
+                        addGridRow(gridId, cols);
+                        tbody = grid.querySelector('tbody');
+                    }
+                    const targetRow = tbody.children[targetRowIndex];
+                    const cells = lineText.split('\t');
+                    cells.forEach(function (val, c) {
+                        const targetColIndex = startColIndex + c;
+                        if (targetColIndex >= cols) return; // ignore extra columns
+                        const input = targetRow.children[targetColIndex].querySelector('input');
+                        if (input) input.value = val.trim();
+                    });
+                });
+            });
+        });
+    </script>
 </body>
 </html>
