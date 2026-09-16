@@ -43,123 +43,77 @@ class StoryController extends Controller
      * not re-upload via cloudinary()->upload() (that only works on actual
      * uploaded files, which will never be present here).
      */
-    public function store(Request $request)
-    {
-        // 'pages' arrives as a JSON-encoded string of Cloudinary URLs
-        // (e.g. '["https://...","https://..."]'), not a single URL and not
-        // an auto-merged array — so it's validated as a string here and
-        // JSON-decoded below.
-        $request->validate([
-            'title'         => 'required|string',
-            'cover_image'   => 'required|url',
-<<<<<<< HEAD
-            'pages'         => 'required',
-            'pages.*'       => 'url',
-=======
-            'pages'         => 'required|string',
->>>>>>> 95ba97162e142c38fad629e828c458a06354c90d
-            'audio_scripts' => 'nullable',
+        public function store(Request $request)
+{
+    $request->validate([
+        'title'         => 'required|string',
+        'cover_image'   => 'required|url',
+        'pages'         => 'required',
+        'audio_scripts' => 'nullable',
+    ]);
+
+    try {
+        $coverPath = $request->input('cover_image');
+
+        $story = Story::create([
+            'title'       => $request->title,
+            'description' => $request->description ?? 'Walang description',
+            'cover_image' => $coverPath,
+            'level'       => $request->level ?? 'frustration',
         ]);
 
-        try {
-            // Cover image: already a Cloudinary URL sent by the app — use as-is.
-            $coverPath = $request->input('cover_image');
-
-            $story = Story::create([
-                'title'       => $request->title,
-                'description' => $request->description ?? 'Walang description',
-                'cover_image' => $coverPath,
-                'level'       => $request->level ?? 'frustration',
-            ]);
-
-            // Kuhanin ang audio scripts (i-decode kung pumasok bilang stringified JSON)
-            $audioScripts = $request->input('audio_scripts', []);
-            if (is_string($audioScripts)) {
-                $decodedAudio = json_decode($audioScripts, true);
-                if (json_last_error() === JSON_ERROR_NONE) {
-                    $audioScripts = $decodedAudio;
-                }
+        $audioScripts = $request->input('audio_scripts', []);
+        if (is_string($audioScripts)) {
+            $decodedAudio = json_decode($audioScripts, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $audioScripts = $decodedAudio;
             }
-
-<<<<<<< HEAD
-            // Pages: already Cloudinary URLs sent by the app (as pages[0],
-            // pages[1], ... which Laravel/PHP parses into an array under
-            // 'pages'). Fall back to decoding a JSON string just in case.
-            $pageUrls = $request->input('pages', []);
-            if (is_string($pageUrls)) {
-                $decodedPages = json_decode($pageUrls, true);
-                if (json_last_error() === JSON_ERROR_NONE) {
-                    $pageUrls = $decodedPages;
-=======
-            // Pages: the app sends this as a JSON-encoded string of
-            // Cloudinary URLs. Decode it; fall back to an empty list if
-            // it's somehow already an array or malformed.
-            $pageUrlsRaw = $request->input('pages', '[]');
-            if (is_string($pageUrlsRaw)) {
-                $decodedPages = json_decode($pageUrlsRaw, true);
-                $pageUrls = (json_last_error() === JSON_ERROR_NONE && is_array($decodedPages))
-                    ? $decodedPages
-                    : [];
-            } else {
-                $pageUrls = is_array($pageUrlsRaw) ? $pageUrlsRaw : [];
-            }
-
-            foreach ($pageUrls as $index => $pageUrl) {
-                $pageScripts = null;
-                if (isset($audioScripts[$index])) {
-                    $scriptValue = $audioScripts[$index];
-
-                    if (is_string($scriptValue)) {
-                        $decoded = json_decode($scriptValue, true);
-                        $pageScripts = (json_last_error() === JSON_ERROR_NONE) ? $decoded : $scriptValue;
-                    } else {
-                        $pageScripts = $scriptValue;
-                    }
->>>>>>> 95ba97162e142c38fad629e828c458a06354c90d
-                }
-
-                StoryPage::create([
-                    'story_id'      => $story->id,
-                    'image_path'    => $pageUrl,
-                    'page_number'   => $index + 1,
-                    'audio_scripts' => $pageScripts,
-                ]);
-            }
-
-            foreach ($pageUrls as $index => $pageUrl) {
-                $pageScripts = null;
-                if (isset($audioScripts[$index])) {
-                    $scriptValue = $audioScripts[$index];
-
-                    if (is_string($scriptValue)) {
-                        $decoded = json_decode($scriptValue, true);
-                        $pageScripts = (json_last_error() === JSON_ERROR_NONE) ? $decoded : $scriptValue;
-                    } else {
-                        $pageScripts = $scriptValue;
-                    }
-                }
-
-                StoryPage::create([
-                    'story_id'      => $story->id,
-                    'image_path'    => $pageUrl,
-                    'page_number'   => $index + 1,
-                    'audio_scripts' => $pageScripts,
-                ]);
-            }
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Story uploaded successfully with audio scripts',
-                'story'   => $story->load('pages') 
-            ], 201);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => $e->getMessage(),
-                'line'    => $e->getLine(),
-            ], 500);
         }
+
+        $pageUrlsRaw = $request->input('pages', []);
+        if (is_string($pageUrlsRaw)) {
+            $decodedPages = json_decode($pageUrlsRaw, true);
+            $pageUrls = (json_last_error() === JSON_ERROR_NONE && is_array($decodedPages))
+                ? $decodedPages
+                : [];
+        } else {
+            $pageUrls = is_array($pageUrlsRaw) ? $pageUrlsRaw : [];
+        }
+
+        foreach ($pageUrls as $index => $pageUrl) {
+            $pageScripts = null;
+            if (isset($audioScripts[$index])) {
+                $scriptValue = $audioScripts[$index];
+
+                if (is_string($scriptValue)) {
+                    $decoded = json_decode($scriptValue, true);
+                    $pageScripts = (json_last_error() === JSON_ERROR_NONE) ? $decoded : $scriptValue;
+                } else {
+                    $pageScripts = $scriptValue;
+                }
+            }
+
+            StoryPage::create([
+                'story_id'      => $story->id,
+                'image_path'    => $pageUrl,
+                'page_number'   => $index + 1,
+                'audio_scripts' => $pageScripts,
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Story uploaded successfully with audio scripts',
+            'story'   => $story->load('pages') 
+        ], 201);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => $e->getMessage(),
+            'line'    => $e->getLine(),
+        ], 500);
     }
+}
 
     /**
      * 🛠️ INAYOS: I-update ang Audio Script ng isang tiyak na Slide Page
