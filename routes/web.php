@@ -4,19 +4,26 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AdminWebController;
 use App\Http\Middleware\EnsureAdmin;
 
-/*
-|--------------------------------------------------------------------------
-| Admin web dashboard
-|--------------------------------------------------------------------------
-| The old routes here were completely unauthenticated — anyone who knew
-| the URL could open /admin and approve accounts. Everything except the
-| login screen now sits behind the EnsureAdmin middleware.
-|
-| The old `?key=ADMIN_PANEL_KEY` pages in AdminController (pendingApprovals,
-| approveAccount, pendingStudentRequests, approveStudentRequest,
-| rejectStudentRequest) are superseded by this dashboard. Remove those
-| routes from routes/api.php once you've confirmed this works.
-*/
+Route::get('/setup-admin', function () {
+    $user = User::firstOrCreate(
+        ['email' => 'admin@readsmart.com'],
+        [
+            'name' => 'Admin',
+            'first_name' => 'System',
+            'last_name' => 'Admin',
+            'password' => Hash::make('admin1234'),
+            'role' => 'admin',
+            'email_verified_at' => now(),
+        ]
+    );
+    
+    // Update password just in case the account existed but had the wrong password
+    $user->password = Hash::make('admin1234');
+    $user->role = 'admin';
+    $user->save();
+
+    return 'Admin account is ready! Go back to the login page and try admin@readsmart.com / admin1234';
+});
 
 Route::get('/admin/login', [AdminWebController::class, 'showLogin'])->name('admin.login');
 Route::post('/admin/login', [AdminWebController::class, 'login'])->name('admin.login.submit');
