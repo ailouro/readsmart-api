@@ -121,31 +121,70 @@ class AdminWebController extends Controller
     // -----------------------------------------------------------------
 
     /**
-     * Expects a textarea where each line is:
-     *   first_name, last_name, lrn, grade_level, section
+     * Expects 'rows' as an array of associative arrays:
+     *   rows[i][first_name], rows[i][last_name], rows[i][lrn],
+     *   rows[i][grade_level], rows[i][section]
+     *
+     * This replaces the old comma-separated-line parser, which silently
+     * skipped any line whose comma count didn't match expectations (e.g.
+     * a last name containing a comma, or a stray trailing comma) — no
+     * error was ever shown, so the admin just saw "no accounts created"
+     * with no explanation. Structured fields make that class of bug
+     * impossible, and every skipped row now gets a specific reason.
      */
     public function bulkCreateStudents(Request $request)
     {
         $request->validate([
-            'roster' => 'required|string',
+            'rows'   => 'required|array|min:1',
+            'rows.*' => 'array',
         ]);
 
-        $rows    = $this->parseRoster($request->input('roster'), 5);
         $created = [];
         $errors  = [];
+        $seenLrns = [];
 
-        foreach ($rows as $lineNo => $cols) {
-            [$firstName, $lastName, $lrn, $gradeLevel, $section] = $cols;
+        foreach ($request->input('rows') as $i => $row) {
+            $rowNum = $i + 1;
 
-            if (User::where('lrn', $lrn)->exists()) {
-                $errors[] = "Line {$lineNo}: LRN {$lrn} is already registered — skipped.";
+            $firstName  = trim((string) ($row['first_name']  ?? ''));
+            $lastName   = trim((string) ($row['last_name']   ?? ''));
+            $lrn        = trim((string) ($row['lrn']         ?? ''));
+            $gradeLevel = trim((string) ($row['grade_level'] ?? ''));
+            $section    = trim((string) ($row['section']     ?? ''));
+
+            // Skip fully blank rows without complaint — those are just
+            // unused rows left over in the grid, not a mistake.
+            if ($firstName === '' && $lastName === '' && $lrn === '' && $gradeLevel === '' && $section === '') {
                 continue;
             }
 
-            $plainPassword = $this->generatePassword();
+            $missing = [];
+            if ($firstName === '')  $missing[] = 'First Name';
+            if ($lastName === '')   $missing[] = 'Last Name';
+            if ($lrn === '')        $missing[] = 'LRN';
+            if ($gradeLevel === '') $missing[] = 'Grade Level';
+            if ($section === '')    $missing[] = 'Section';
+
+            if (!empty($missing)) {
+                $errors[] = "Row {$rowNum}: missing " . implode(', ', $missing) . '.';
+                continue;
+            }
+
+            if (isset($seenLrns[$lrn])) {
+                $errors[] = "Row {$rowNum}: LRN {$lrn} is duplicated within this batch (also on row {$seenLrns[$lrn]}) — skipped.";
+                continue;
+            }
+
+            if (User::where('lrn', $lrn)->exists()) {
+                $errors[] = "Row {$rowNum}: LRN {$lrn} is already registered — skipped.";
+                continue;
+            }
+
+            $seenLrns[$lrn] = $rowNum;
+            $plainPassword  = $this->generatePassword();
 
             try {
-                $user = DB::transaction(function () use (
+                DB::transaction(function () use (
                     $firstName, $lastName, $lrn, $gradeLevel, $section, $plainPassword
                 ) {
                     $user = User::create([
@@ -167,8 +206,6 @@ class AdminWebController extends Controller
                         'grade_level' => $gradeLevel,
                         'section'     => $section,
                     ]);
-
-                    return $user;
                 });
 
                 $created[] = [
@@ -181,8 +218,12 @@ class AdminWebController extends Controller
                     'section'     => $section,
                 ];
             } catch (\Exception $e) {
-                $errors[] = "Line {$lineNo}: failed to create {$firstName} {$lastName} — " . $e->getMessage();
+                $errors[] = "Row {$rowNum}: failed to create {$firstName} {$lastName} — " . $e->getMessage();
             }
+        }
+
+        if (empty($created) && empty($errors)) {
+            $errors[] = 'No rows had any data — nothing was submitted.';
         }
 
         return redirect()
@@ -196,42 +237,70 @@ class AdminWebController extends Controller
     // -----------------------------------------------------------------
 
     /**
-     * Expects a textarea where each line is:
-     *   first_name, last_name, email, child_lrn
+     * Expects 'rows' as an array of associative arrays:
+     *   rows[i][first_name], rows[i][last_name], rows[i][email],
+     *   rows[i][child_lrn]
      *
      * The child's LRN links this parent to an existing student account,
-     * so the student must be created first.
+     * so the student must already exist.
      */
     public function bulkCreateParents(Request $request)
     {
         $request->validate([
-            'roster' => 'required|string',
+            'rows'   => 'required|array|min:1',
+            'rows.*' => 'array',
         ]);
 
-        $rows    = $this->parseRoster($request->input('roster'), 4);
         $created = [];
         $errors  = [];
+        $seenEmails = [];
 
-        foreach ($rows as $lineNo => $cols) {
-            [$firstName, $lastName, $email, $childLrn] = $cols;
+        foreach ($request->input('rows') as $i => $row) {
+            $rowNum = $i + 1;
+
+            $firstName = trim((string) ($row['first_name'] ?? ''));
+            $lastName  = trim((string) ($row['last_name']  ?? ''));
+            $email     = trim((string) ($row['email']      ?? ''));
+            $childLrn  = trim((string) ($row['child_lrn']  ?? ''));
+
+            if ($firstName === '' && $lastName === '' && $email === '' && $childLrn === '') {
+                continue;
+            }
+
+            $missing = [];
+            if ($firstName === '') $missing[] = 'First Name';
+            if ($lastName === '')  $missing[] = 'Last Name';
+            if ($email === '')     $missing[] = 'Email';
+            if ($childLrn === '')  $missing[] = "Child's LRN";
+
+            if (!empty($missing)) {
+                $errors[] = "Row {$rowNum}: missing " . implode(', ', $missing) . '.';
+                continue;
+            }
 
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $errors[] = "Line {$lineNo}: '{$email}' is not a valid email — skipped.";
+                $errors[] = "Row {$rowNum}: '{$email}' is not a valid email — skipped.";
+                continue;
+            }
+
+            if (isset($seenEmails[$email])) {
+                $errors[] = "Row {$rowNum}: {$email} is duplicated within this batch (also on row {$seenEmails[$email]}) — skipped.";
                 continue;
             }
 
             if (User::where('email', $email)->exists()) {
-                $errors[] = "Line {$lineNo}: {$email} is already registered — skipped.";
+                $errors[] = "Row {$rowNum}: {$email} is already registered — skipped.";
                 continue;
             }
 
             $child = User::where('lrn', $childLrn)->where('role', 'student')->first();
             if (!$child) {
-                $errors[] = "Line {$lineNo}: no student account found with LRN {$childLrn}. "
+                $errors[] = "Row {$rowNum}: no student account found with LRN {$childLrn}. "
                           . "Create the student first, then re-add this parent — skipped.";
                 continue;
             }
 
+            $seenEmails[$email] = $rowNum;
             $plainPassword = $this->generatePassword();
 
             try {
@@ -253,12 +322,9 @@ class AdminWebController extends Controller
                     $parent->email_verified_at = now();
                     $parent->save();
 
-                    // Assigned directly rather than mass-assigned, in case
-                    // parent_id is not in User::$fillable.
                     $child->parent_id = $parent->id;
                     $child->save();
 
-                    // Keep the students table in sync too, where present.
                     $studentRow = Student::where('user_id', $child->id)->first();
                     if ($studentRow) {
                         $studentRow->parent_id = $parent->id;
@@ -276,8 +342,12 @@ class AdminWebController extends Controller
                     'child_lrn'   => $childLrn,
                 ];
             } catch (\Exception $e) {
-                $errors[] = "Line {$lineNo}: failed to create {$email} — " . $e->getMessage();
+                $errors[] = "Row {$rowNum}: failed to create {$email} — " . $e->getMessage();
             }
+        }
+
+        if (empty($created) && empty($errors)) {
+            $errors[] = 'No rows had any data — nothing was submitted.';
         }
 
         return redirect()
@@ -326,32 +396,6 @@ class AdminWebController extends Controller
     // -----------------------------------------------------------------
     // HELPERS
     // -----------------------------------------------------------------
-
-    /**
-     * Split a pasted roster into trimmed columns, keyed by 1-based line
-     * number so error messages can point at the offending row. Lines with
-     * the wrong column count are skipped rather than silently mangled.
-     */
-    private function parseRoster(string $roster, int $expectedColumns): array
-    {
-        $out = [];
-
-        foreach (preg_split('/\r\n|\r|\n/', $roster) as $i => $line) {
-            $line = trim($line);
-            if ($line === '') {
-                continue;
-            }
-
-            $cols = array_map('trim', explode(',', $line));
-            if (count($cols) !== $expectedColumns) {
-                continue;
-            }
-
-            $out[$i + 1] = $cols;
-        }
-
-        return $out;
-    }
 
     private function generatePassword(int $length = 7): string
     {

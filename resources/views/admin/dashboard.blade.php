@@ -52,31 +52,33 @@
         .flash { background: #dcfce7; border: 1px solid #86efac; color: #15803d; padding: 11px 14px; border-radius: 8px; margin-bottom: 18px; font-size: 14px; }
         code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
 
-        .roster-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
         .grid-wrap { overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 8px; }
         table.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
         table.grid th {
-            background: #f8fafc; text-align: left; padding: 8px 10px; font-size: 12px;
-            color: #475569; border-bottom: 1px solid #e2e8f0; white-space: nowrap;
+            text-align: left; background: #f8fafc; padding: 8px 10px;
+            border-bottom: 2px solid #e2e8f0; border-right: 1px solid #e2e8f0;
+            font-size: 12px; color: #475569; white-space: nowrap;
         }
-        table.grid td { padding: 0; border-bottom: 1px solid #f1f5f9; }
-        table.grid td input {
-            width: 100%; border: 0; padding: 9px 10px; font-family: ui-monospace, Menlo, Consolas, monospace;
-            font-size: 13px; background: transparent; outline: none; box-sizing: border-box;
+        table.grid td {
+            padding: 0; border-bottom: 1px solid #f1f5f9; border-right: 1px solid #f1f5f9;
         }
-        table.grid td input:focus { background: #eff6ff; }
-        table.grid tr:last-child td { border-bottom: 0; }
-        .grid-action-col { width: 34px; }
-        .row-remove {
-            width: 26px; height: 26px; border: 0; background: #fee2e2; color: #b91c1c;
-            border-radius: 6px; cursor: pointer; font-size: 15px; line-height: 1; margin: 0 8px;
+        table.grid td.col-remove, table.grid th.col-remove { border-right: none; width: 36px; }
+        table.grid input {
+            width: 100%; border: 0; padding: 8px 10px; font-size: 13px;
+            font-family: ui-monospace, Menlo, Consolas, monospace;
+            background: transparent;
         }
-        .row-remove:hover { background: #fecaca; }
-        .btn-add-row {
-            margin-top: 10px; background: #e2e8f0; color: #334155; border: 0;
-            padding: 8px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 13px;
+        table.grid input:focus { outline: 2px solid #2563eb; outline-offset: -2px; background: #eff6ff; }
+        .row-remove-btn {
+            border: 0; background: transparent; color: #cbd5e1; cursor: pointer;
+            font-size: 16px; line-height: 1; padding: 8px; width: 100%;
         }
-        .btn-add-row:hover { background: #cbd5e1; }
+        .row-remove-btn:hover { color: #dc2626; }
+        .btn-add {
+            background: #fff; color: #2563eb; border: 1px dashed #93c5fd;
+            margin-right: 8px;
+        }
+        .btn-add:hover { background: #eff6ff; }
     </style>
 </head>
 <body>
@@ -104,41 +106,28 @@
             <div class="panel">
                 <h2>Bulk create student accounts</h2>
                 <p class="hint">
-                    Fill in a row per student. You can also paste straight from a spreadsheet (Excel/Google Sheets) —
-                    select a block of cells there, copy, click the first cell below, and paste; it'll fill across and down automatically.<br>
+                    Fill in each row, or copy a block of cells from Excel/Google Sheets and paste directly into the grid —
+                    it will fill across columns and add rows automatically.<br>
                     Students log in using their <strong>LRN</strong>. Passwords are generated automatically and shown once on the printout.
                 </p>
-                <form method="POST" action="{{ route('admin.students.bulk') }}" onsubmit="return syncRoster('student-grid', 'student-roster', 5)">
+                <form method="POST" action="{{ route('admin.students.bulk') }}">
                     @csrf
-                    <textarea name="roster" id="student-roster" class="roster-hidden"></textarea>
                     <div class="grid-wrap">
-                        <table class="grid" id="student-grid" data-cols="5">
+                        <table class="grid" id="studentGrid" data-columns="first_name,last_name,lrn,grade_level,section">
                             <thead>
                                 <tr>
-                                    <th>First name</th>
-                                    <th>Last name</th>
+                                    <th>First Name</th>
+                                    <th>Last Name</th>
                                     <th>LRN</th>
-                                    <th>Grade level</th>
+                                    <th>Grade Level</th>
                                     <th>Section</th>
-                                    <th class="grid-action-col"></th>
+                                    <th class="col-remove"></th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                @for ($i = 0; $i < 3; $i++)
-                                    <tr>
-                                        <td><input type="text" placeholder="Maria"></td>
-                                        <td><input type="text" placeholder="Santos"></td>
-                                        <td><input type="text" placeholder="123456789012"></td>
-                                        <td><input type="text" placeholder="Grade 5"></td>
-                                        <td><input type="text" placeholder="Mabini"></td>
-                                        <td><button type="button" class="row-remove" onclick="removeGridRow(this)" title="Remove row">&times;</button></td>
-                                    </tr>
-                                @endfor
-                            </tbody>
+                            <tbody></tbody>
                         </table>
                     </div>
-                    <button type="button" class="btn-add-row" onclick="addGridRow('student-grid', 5)">+ Add row</button>
-                    <br>
+                    <button type="button" class="btn btn-add" onclick="addGridRow('studentGrid')">+ Add row</button>
                     <button type="submit" class="btn">Create accounts &amp; print slips</button>
                 </form>
             </div>
@@ -177,38 +166,27 @@
             <div class="panel">
                 <h2>Bulk create parent accounts</h2>
                 <p class="hint">
-                    Fill in a row per parent, or paste from a spreadsheet the same way as the Students tab.<br>
-                    The child's LRN links this parent to an existing student, so <strong>create the student first</strong>. Parents log in using their <strong>email</strong>.
+                    Fill in each row, or paste a block copied from a spreadsheet.<br>
+                    <strong>Child's LRN</strong> links this parent to an existing student — create the student first.
+                    Parents log in using their <strong>email</strong>.
                 </p>
-                <form method="POST" action="{{ route('admin.parents.bulk') }}" onsubmit="return syncRoster('parent-grid', 'parent-roster', 4)">
+                <form method="POST" action="{{ route('admin.parents.bulk') }}">
                     @csrf
-                    <textarea name="roster" id="parent-roster" class="roster-hidden"></textarea>
                     <div class="grid-wrap">
-                        <table class="grid" id="parent-grid" data-cols="4">
+                        <table class="grid" id="parentGrid" data-columns="first_name,last_name,email,child_lrn">
                             <thead>
                                 <tr>
-                                    <th>First name</th>
-                                    <th>Last name</th>
+                                    <th>First Name</th>
+                                    <th>Last Name</th>
                                     <th>Email</th>
                                     <th>Child's LRN</th>
-                                    <th class="grid-action-col"></th>
+                                    <th class="col-remove"></th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                @for ($i = 0; $i < 3; $i++)
-                                    <tr>
-                                        <td><input type="text" placeholder="Ana"></td>
-                                        <td><input type="text" placeholder="Santos"></td>
-                                        <td><input type="text" placeholder="ana.santos@gmail.com"></td>
-                                        <td><input type="text" placeholder="123456789012"></td>
-                                        <td><button type="button" class="row-remove" onclick="removeGridRow(this)" title="Remove row">&times;</button></td>
-                                    </tr>
-                                @endfor
-                            </tbody>
+                            <tbody></tbody>
                         </table>
                     </div>
-                    <button type="button" class="btn-add-row" onclick="addGridRow('parent-grid', 4)">+ Add row</button>
-                    <br>
+                    <button type="button" class="btn btn-add" onclick="addGridRow('parentGrid')">+ Add row</button>
                     <button type="submit" class="btn">Create accounts &amp; print slips</button>
                 </form>
             </div>
@@ -289,96 +267,131 @@
     </div>
 
     <script>
-        // ---- add / remove rows -------------------------------------------------
-        function addGridRow(gridId, cols) {
-            const tbody = document.querySelector('#' + gridId + ' tbody');
+        // ---------------------------------------------------------------
+        // Editable spreadsheet-style grid for bulk student/parent create.
+        // Each <table class="grid"> declares its field order via
+        // data-columns="a,b,c" on the <table> itself. Inputs are named
+        // rows[i][field] so Laravel receives a structured array — no more
+        // comma-counting, so a stray comma in a name can't silently drop
+        // a whole row.
+        // ---------------------------------------------------------------
+
+        function gridColumns(table) {
+            return table.dataset.columns.split(',');
+        }
+
+        function buildRow(table, values) {
+            const columns = gridColumns(table);
             const tr = document.createElement('tr');
-            for (let i = 0; i < cols; i++) {
+
+            columns.forEach((col) => {
                 const td = document.createElement('td');
                 const input = document.createElement('input');
                 input.type = 'text';
+                input.dataset.col = col;
+                input.value = values && values[col] ? values[col] : '';
+                input.addEventListener('paste', (e) => handleGridPaste(e, table, tr, input));
                 td.appendChild(input);
                 tr.appendChild(td);
-            }
-            const actionTd = document.createElement('td');
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'row-remove';
-            btn.title = 'Remove row';
-            btn.innerHTML = '&times;';
-            btn.onclick = function () { removeGridRow(btn); };
-            actionTd.appendChild(btn);
-            tr.appendChild(actionTd);
-            tbody.appendChild(tr);
-        }
-
-        function removeGridRow(btn) {
-            const tbody = btn.closest('tbody');
-            if (tbody.rows.length > 1) {
-                btn.closest('tr').remove();
-            } else {
-                // keep at least one row, just clear it
-                btn.closest('tr').querySelectorAll('input').forEach(i => i.value = '');
-            }
-        }
-
-        // ---- serialize grid -> hidden textarea before submit -------------------
-        function syncRoster(gridId, textareaId, cols) {
-            const rows = document.querySelectorAll('#' + gridId + ' tbody tr');
-            const lines = [];
-            rows.forEach(row => {
-                const inputs = row.querySelectorAll('input');
-                const values = Array.from(inputs).map(i => i.value.trim());
-                if (values.some(v => v !== '')) {
-                    lines.push(values.join(', '));
-                }
             });
-            document.getElementById(textareaId).value = lines.join('\n');
-            return true; // let the form submit
+
+            const removeTd = document.createElement('td');
+            removeTd.className = 'col-remove';
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'row-remove-btn';
+            removeBtn.innerHTML = '&times;';
+            removeBtn.title = 'Remove row';
+            removeBtn.addEventListener('click', () => {
+                const tbody = table.querySelector('tbody');
+                if (tbody.rows.length > 1) {
+                    tr.remove();
+                } else {
+                    // keep at least one row, just clear it
+                    columns.forEach((col) => {
+                        tr.querySelector(`input[data-col="${col}"]`).value = '';
+                    });
+                }
+                reindexGrid(table);
+            });
+            removeTd.appendChild(removeBtn);
+            tr.appendChild(removeTd);
+
+            return tr;
         }
 
-        // ---- spreadsheet-style paste --------------------------------------------
-        // Paste a block copied from Excel/Google Sheets into any cell and it
-        // fills across columns (tab-separated) and down rows (newline-separated),
-        // adding grid rows automatically if the pasted block runs past the bottom.
-        document.querySelectorAll('table.grid').forEach(function (grid) {
-            const cols = parseInt(grid.dataset.cols, 10);
-            const gridId = grid.id;
-
-            grid.addEventListener('paste', function (e) {
-                const text = (e.clipboardData || window.clipboardData).getData('text');
-                if (!text || (!text.includes('\t') && !text.includes('\n'))) {
-                    return; // plain single value — let the browser paste normally
-                }
-                e.preventDefault();
-
-                const startInput = e.target;
-                const startTd = startInput.closest('td');
-                const startRow = startInput.closest('tr');
-                let startColIndex = Array.from(startRow.children).indexOf(startTd);
-                let startRowIndex = Array.from(grid.querySelector('tbody').children).indexOf(startRow);
-
-                const gridRows = text.replace(/\r/g, '').split('\n').filter((_, i, arr) =>
-                    !(i === arr.length - 1 && arr[i] === '') // drop trailing empty line
-                );
-
-                gridRows.forEach(function (lineText, r) {
-                    const targetRowIndex = startRowIndex + r;
-                    let tbody = grid.querySelector('tbody');
-                    while (tbody.children.length <= targetRowIndex) {
-                        addGridRow(gridId, cols);
-                        tbody = grid.querySelector('tbody');
-                    }
-                    const targetRow = tbody.children[targetRowIndex];
-                    const cells = lineText.split('\t');
-                    cells.forEach(function (val, c) {
-                        const targetColIndex = startColIndex + c;
-                        if (targetColIndex >= cols) return; // ignore extra columns
-                        const input = targetRow.children[targetColIndex].querySelector('input');
-                        if (input) input.value = val.trim();
-                    });
+        function reindexGrid(table) {
+            const columns = gridColumns(table);
+            const rows = table.querySelectorAll('tbody tr');
+            rows.forEach((tr, i) => {
+                columns.forEach((col) => {
+                    const input = tr.querySelector(`input[data-col="${col}"]`);
+                    input.name = `rows[${i}][${col}]`;
                 });
             });
+        }
+
+        function addGridRow(tableId, values) {
+            const table = document.getElementById(tableId);
+            const tbody = table.querySelector('tbody');
+            tbody.appendChild(buildRow(table, values));
+            reindexGrid(table);
+            return table.querySelectorAll('tbody tr').length - 1; // new row index
+        }
+
+        function initGrid(tableId, initialRows) {
+            const table = document.getElementById(tableId);
+            for (let i = 0; i < initialRows; i++) {
+                addGridRow(tableId);
+            }
+        }
+
+        /**
+         * Handles pasting a block of cells copied from Excel/Google Sheets
+         * (tab-separated columns, newline-separated rows) starting at the
+         * cell that was focused when the paste happened. Adds rows to the
+         * grid automatically if the pasted block runs past the last row.
+         * A normal single-value paste (no tabs/newlines) is left alone so
+         * default browser paste behavior still works for one cell.
+         */
+        function handleGridPaste(e, table, startTr, startInput) {
+            const text = (e.clipboardData || window.clipboardData).getData('text');
+            if (!text || (!text.includes('\t') && !text.includes('\n'))) {
+                return; // single value — let the browser handle it normally
+            }
+            e.preventDefault();
+
+            const columns = gridColumns(table);
+            const startColIndex = columns.indexOf(startInput.dataset.col);
+            const tbody = table.querySelector('tbody');
+            const startRowIndex = Array.from(tbody.rows).indexOf(startTr);
+
+            const lines = text.replace(/\r/g, '').split('\n').filter((l, idx, arr) =>
+                !(idx === arr.length - 1 && l === '') // drop trailing empty line from copy
+            );
+
+            lines.forEach((line, li) => {
+                const cells = line.split('\t');
+                const targetRowIndex = startRowIndex + li;
+
+                while (tbody.rows.length <= targetRowIndex) {
+                    tbody.appendChild(buildRow(table));
+                }
+                reindexGrid(table);
+
+                const targetTr = tbody.rows[targetRowIndex];
+                cells.forEach((val, ci) => {
+                    const targetColIndex = startColIndex + ci;
+                    if (targetColIndex >= columns.length) return; // ignore extra pasted columns
+                    const input = targetTr.querySelector(`input[data-col="${columns[targetColIndex]}"]`);
+                    if (input) input.value = val.trim();
+                });
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (document.getElementById('studentGrid')) initGrid('studentGrid', 5);
+            if (document.getElementById('parentGrid')) initGrid('parentGrid', 5);
         });
     </script>
 </body>
