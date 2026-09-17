@@ -352,10 +352,47 @@ class StoryController extends Controller
             'progress' => $progress
         ], 201);
     }
+
+    public function generateMultiScriptAudio(Request $request, $pageId)
+{
+    $request->validate([
+        'scripts' => 'required|array|min:1',
+        'scripts.*' => 'required|string',
+    ]);
+
+    $page = StoryPage::findOrFail($pageId);
+    $generatedUrls = [];
+
+    foreach ($request->input('scripts') as $index => $scriptText) {
+        // Step A: Convert text string to TTS audio binary stream
+        $audioBinary = $this->googleService->generateAudio($scriptText);
+
+        // Step B: Upload stream directly to Cloudinary folder
+        $fileName = "story_{$page->story_id}_p{$page->id}_script_{$index}";
+        $uploadResult = Cloudinary::uploadApi()->upload(
+            "data:audio/mp3;base64," . base64_encode($audioBinary),
+            [
+                'folder' => 'story_audio',
+                'public_id' => $fileName,
+                'resource_type' => 'video',
+            ]
+        );
+
+        // Step C: Collect secure public URL
+        $generatedUrls[] = $uploadResult['secure_url'];
+    }
+
+    // Step D: Update database record
+    $page->audio_urls = $generatedUrls;
+    $page->save();
+
+    return response()->json([
+        'status' => 'success',
+        'audio_urls' => $page->audio_urls,
+    ], 200);
+}
     
-    /**
-     * 🟢 Tanggalin ang kwento at mga kaugnay na larawan/audio
-     */
+ 
     public function destroy($id)
     {
         $story = Story::with('pages')->find($id);

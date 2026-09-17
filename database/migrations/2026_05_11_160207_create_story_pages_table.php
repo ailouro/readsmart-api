@@ -21,6 +21,8 @@ return new class extends Migration
             $table->integer('page_number');
 
             $table->timestamps();
+
+            $table->json('audio_urls')->nullable();
         });
     }
 
