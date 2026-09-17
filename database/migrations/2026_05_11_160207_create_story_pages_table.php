@@ -22,6 +22,7 @@ return new class extends Migration
 
             $table->timestamps();
 
+            $table->json('scripts')->nullable();
             $table->json('audio_urls')->nullable();
         });
     }

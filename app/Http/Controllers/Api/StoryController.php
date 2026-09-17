@@ -382,8 +382,10 @@ class StoryController extends Controller
         $generatedUrls[] = $uploadResult['secure_url'];
     }
 
-    // Step D: Update database record
-    $page->audio_urls = $generatedUrls;
+
+
+    $page->scripts = $request->input('scripts'); 
+    $page->audio_urls = $generatedUrls;         
     $page->save();
 
     return response()->json([
@@ -401,7 +403,7 @@ class StoryController extends Controller
             return response()->json(['message' => 'Story not found'], 404);
         }
 
-        try {
+        try {   
             // Tanggalin ang cover image sa storage
             if ($story->cover_image) {
                 \Illuminate\Support\Facades\Storage::disk('public')->delete($story->cover_image);

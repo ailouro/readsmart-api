@@ -61,7 +61,7 @@ Route::post('/parents/enroll', [ParentController::class, 'enroll']);
 Route::get('/parents/{parentId}/dashboard', [ParentController::class, 'dashboard']);
 Route::post('/student-self-corrections', [SelfCorrectionController::class, 'storeSelfCorrections']);
 Route::get('/teachers/{id}/self-corrections', [SelfCorrectionController::class, 'teacherSelfCorrections']);
-
+Route::post('/pages/{page}/multi-script-audio', [StoryController::class, 'generateMultiScriptAudio']);
 
 Route::get('/test', function () {
     return response()->json([
