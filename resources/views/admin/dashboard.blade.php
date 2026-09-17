@@ -52,26 +52,29 @@
         .flash { background: #dcfce7; border: 1px solid #86efac; color: #15803d; padding: 11px 14px; border-radius: 8px; margin-bottom: 18px; font-size: 14px; }
         code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
 
-        .grid-wrap { overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 8px; }
-        table.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .grid-wrap { overflow-x: auto; border: 1px solid #94a3b8; border-radius: 8px; max-height: 420px; overflow-y: auto; }
+        table.grid { width: 100%; border-collapse: collapse; font-size: 13.5px; }
         table.grid th {
-            text-align: left; background: #f8fafc; padding: 8px 10px;
-            border-bottom: 2px solid #e2e8f0; border-right: 1px solid #e2e8f0;
-            font-size: 12px; color: #475569; white-space: nowrap;
+            text-align: left; background: #dbeafe; color: #1e3a8a;
+            padding: 10px 12px; font-weight: 700;
+            border: 1px solid #94a3b8; white-space: nowrap;
+            position: sticky; top: 0; z-index: 1;
         }
+        table.grid tbody tr:nth-child(even) { background: #f8fafc; }
+        table.grid tbody tr:hover { background: #eff6ff; }
         table.grid td {
-            padding: 0; border-bottom: 1px solid #f1f5f9; border-right: 1px solid #f1f5f9;
+            padding: 0; border: 1px solid #cbd5e1;
         }
-        table.grid td.col-remove, table.grid th.col-remove { border-right: none; width: 36px; }
+        table.grid td.col-remove, table.grid th.col-remove { border-right: 1px solid #94a3b8; width: 40px; text-align: center; }
         table.grid input {
-            width: 100%; border: 0; padding: 8px 10px; font-size: 13px;
+            width: 100%; border: 0; padding: 9px 12px; font-size: 13.5px;
             font-family: ui-monospace, Menlo, Consolas, monospace;
             background: transparent;
         }
-        table.grid input:focus { outline: 2px solid #2563eb; outline-offset: -2px; background: #eff6ff; }
+        table.grid input:focus { outline: 2px solid #2563eb; outline-offset: -2px; background: #fff; position: relative; z-index: 2; }
         .row-remove-btn {
             border: 0; background: transparent; color: #cbd5e1; cursor: pointer;
-            font-size: 16px; line-height: 1; padding: 8px; width: 100%;
+            font-size: 17px; line-height: 1; padding: 9px; width: 100%;
         }
         .row-remove-btn:hover { color: #dc2626; }
         .btn-add {
