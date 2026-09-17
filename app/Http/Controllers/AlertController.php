@@ -27,8 +27,15 @@ class AlertController extends Controller
                 ->get();
 
             foreach ($students as $student) {
-                // Latest 2 tests for this student
-                $latestProgress = StudentProgress::where('student_id', $student->id)
+                // 🛠️ FIX: StudentProgress's foreign key is `user_id`, not
+                // `student_id` — every other place in the app that queries
+                // this table (ClassEnrollmentController::saveProgress,
+                // getTeacherDashboardSummary) uses `user_id`. Querying
+                // `student_id` here matched zero rows every time, so
+                // $latestProgress->count() was always 0, `continue` always
+                // fired, and no alert could ever be generated — this was
+                // almost certainly the actual bug behind the empty results.
+                $latestProgress = StudentProgress::where('user_id', $student->id)
                     ->orderBy('created_at', 'desc')
                     ->take(2)
                     ->get();
@@ -57,8 +64,6 @@ class AlertController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $alerts,
-                // remove this debug line once confirmed working
-                'debug_students_found' => $students->count(),
             ], 200);
 
         } catch (\Exception $e) {

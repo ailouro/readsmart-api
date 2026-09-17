@@ -8,6 +8,7 @@ use App\Models\Story;
 use App\Models\StoryPage;
 use App\Models\Quiz;
 use App\Models\StudentProgress;
+use App\Models\SelfCorrection;
 
 class StoryController extends Controller
 {
@@ -250,6 +251,15 @@ class StoryController extends Controller
             'time_on_task' => 'required|integer',
             'total_words' => 'nullable|integer',
             'test_type' => 'nullable|in:pre_test,post_test',
+            // 🛠️ FIX: story_view_screen.dart has been sending this array all
+            // along (see the /api/student/progress call), but it was never
+            // in this validate() list, so it was silently dropped on every
+            // request and never reached the SelfCorrection table — the
+            // dedicated /api/student-self-corrections endpoint isn't called
+            // by the app anymore. Same flow, just actually wired up now.
+            'self_corrected_words' => 'nullable|array',
+            'self_corrected_words.*.word' => 'required_with:self_corrected_words|string',
+            'self_corrected_words.*.total_attempts' => 'nullable|integer',
         ]);
 
         // Calculate Quiz Score Percentage (Comprehension)
@@ -322,6 +332,17 @@ class StoryController extends Controller
                 'time_on_task' => $validated['time_on_task'],
                 'reading_level' => $readingLevel,
                 'is_reading_completed' => true,
+            ]);
+        }
+
+        // Same fix as above, applied on both branches: persist any
+        // self-corrected words that came with this progress submission.
+        foreach ($validated['self_corrected_words'] ?? [] as $w) {
+            SelfCorrection::create([
+                'student_id' => $validated['user_id'],
+                'story_id' => $validated['story_id'],
+                'word' => strtolower($w['word']),
+                'total_attempts' => $w['total_attempts'] ?? 2,
             ]);
         }
 

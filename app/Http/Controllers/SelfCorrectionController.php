@@ -37,15 +37,20 @@ class SelfCorrectionController extends Controller
     // GET /api/teachers/{id}/self-corrections
     // Mirrors the existing mispronunciations-by-teacher endpoint: return
     // every self-correction logged by any student belonging to this teacher.
-    // ⚠️ Adjust the scoping query below (student_id -> teacher relation) to
-    // match however your actual mispronunciations endpoint scopes students
-    // to a teacher — I'm guessing at a `teacher_id` column on the student.
+    //
+    // 🛠️ FIX: was guessing at a `teacher_id` column directly on the student.
+    // The real relation (confirmed against ClassEnrollmentController::
+    // getTeacherStudentLogs, which already works) is student -> classes
+    // (many-to-many) -> class.teacher_id. whereHas('student', ...) was
+    // silently matching nothing since 'teacher_id' isn't a column on
+    // students at all.
     // ---------------------------------------------------------------------
     public function teacherSelfCorrections($teacherId)
     {
-        $selfCorrections = SelfCorrection::whereHas('student', function ($q) use ($teacherId) {
-                $q->where('teacher_id', $teacherId); // adjust to your actual relation/column
+        $selfCorrections = SelfCorrection::whereHas('student.classes', function ($q) use ($teacherId) {
+                $q->where('teacher_id', $teacherId);
             })
+            ->orderBy('created_at', 'desc')
             ->get();
 
         return response()->json(['data' => $selfCorrections]);
