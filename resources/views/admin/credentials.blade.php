@@ -63,16 +63,16 @@
         </div>
     </div>
 
-    @if (!empty($errors) && count($errors))
-        <div class="errors">
-            <strong>Some rows were skipped:</strong>
-            <ul>
-                @foreach ($errors as $err)
-                    <li>{{ $err }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
+    @if (!empty($importErrors) && count($importErrors))
+    <div class="errors">
+        <strong>Some rows were skipped:</strong>
+        <ul>
+            @foreach ($importErrors as $err)
+                <li>{{ $err }}</li>
+            @endforeach
+        </ul>
+    </div>
+@endif
 
     @if (count($credentials))
         <div class="warn">

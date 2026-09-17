@@ -95,9 +95,19 @@
 
     <div class="wrap">
         @if (session('success'))
-            <div class="flash">{{ session('success') }}</div>
-        @endif
+    <div class="flash">{{ session('success') }}</div>
+@endif
 
+@if ($errors->any())
+    <div class="errors" style="background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; padding: 11px 14px; border-radius: 8px; margin-bottom: 18px; font-size: 14px;">
+        <strong>Please fix the following issues:</strong>
+        <ul style="margin: 6px 0 0; padding-left: 20px;">
+            @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    </div>
+@endif
         <div class="tabs">
             <a href="{{ route('admin.dashboard', ['tab' => 'students']) }}" class="{{ $tab === 'students' ? 'active' : '' }}">Students ({{ $students->count() }})</a>
             <a href="{{ route('admin.dashboard', ['tab' => 'parents']) }}" class="{{ $tab === 'parents' ? 'active' : '' }}">Parents ({{ $parents->count() }})</a>

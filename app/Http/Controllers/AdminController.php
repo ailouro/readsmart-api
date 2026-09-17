@@ -210,8 +210,6 @@ class AdminController extends Controller
             )->header('Content-Type', 'text/html');
         }
 
-        // LRN could theoretically have been taken by something else since
-        // the request was submitted — re-check before creating.
         if (User::where('lrn', $req->lrn)->exists()) {
             return response(
                 '<h2>Cannot approve — LRN ' . e($req->lrn) . ' is already in use.</h2>
@@ -220,12 +218,7 @@ class AdminController extends Controller
             )->header('Content-Type', 'text/html');
         }
 
-        // student_requests only stores one "student_name" field, not
-        // separate first/last names like users/students need. Splitting on
-        // the first space is a rough approximation — multi-part first names
-        // (e.g. "Maria Clara Santos") will split incorrectly. Worth fixing
-        // at the source (asking for first/last name separately on the
-        // request form) if this matters for your records.
+
         $parts = explode(' ', trim($req->student_name), 2);
         $firstName = $parts[0];
         $lastName = $parts[1] ?? '';
@@ -250,13 +243,14 @@ class AdminController extends Controller
             $user->save();
 
             Student::create([
-                'user_id' => $user->id,
-                'first_name' => $firstName,
-                'last_name' => $lastName,
-                'name' => trim("{$firstName} {$lastName}"),
-                'grade_level' => $req->grade_level,
-                'section' => $req->section,
-            ]);
+    'user_id' => $user->id,
+    'parent_id' => $parent->id, // Add this line
+    'first_name' => $firstName,
+    'last_name' => $lastName,
+    'name' => trim("{$firstName} {$lastName}"),
+    'grade_level' => $req->grade_level,
+    'section' => $req->section,
+]);
 
             $req->status = 'approved';
             $req->save();

@@ -383,15 +383,12 @@ class AdminWebController extends Controller
     // -----------------------------------------------------------------
 
     public function credentials(Request $request)
-    {
-        // Passwords only exist in the flash payload from the bulk-create
-        // redirect. Reloading this page after that flash is gone shows
-        // nothing — by design, since plaintext is never persisted.
-        $credentials = session('credentials', []);
-        $errors      = session('credential_errors', []);
+{
+    $credentials  = session('credentials', []);
+    $importErrors = session('credential_errors', []);
 
-        return view('admin.credentials', compact('credentials', 'errors'));
-    }
+    return view('admin.credentials', compact('credentials', 'importErrors'));
+}
 
     // -----------------------------------------------------------------
     // HELPERS
