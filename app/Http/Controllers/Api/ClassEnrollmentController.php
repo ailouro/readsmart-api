@@ -83,13 +83,6 @@ class ClassEnrollmentController extends Controller
 
     public function logMispronunciation(Request $request)
 {
-    // 🔍 TEMPORARY DEBUG LOG — remove once the bug is confirmed fixed.
-    \Illuminate\Support\Facades\Log::info('logMispronunciation HIT', [
-        'all_input' => $request->all(),
-        'has_words_json' => $request->has('words_json'),
-        'ip' => $request->ip(),
-    ]);
-
     // 🛠️ FIX: The Flutter app (story_view_screen.dart) sends word data as
     // a JSON-encoded string field called 'words_json' (via a
     // MultipartRequest), NOT as a real 'words' array field — 'words[]' is
@@ -111,17 +104,56 @@ class ClassEnrollmentController extends Controller
         ], 422);
     }
 
+    // 🎤 FIX: dating dumarating ang 'audio_files[]' pero hindi kailanman
+    // binabasa ng controller — natatanggap lang, tapos itinatapon. Ngayon
+    // ginagamit na, at ini-upload sa Cloudinary kaparehong pattern ng TTS.
+    //
+    // Hindi natin puwedeng ipares ang audio_files[] sa words_json base sa
+    // array index — sa Flutter side, isang audio file lang isinasama
+    // PER WORD NA MAY AUDIO ("if (failedWords[i].audioPath != null)"), kaya
+    // maiiba ang bilang nila kung may failed word na walang na-record na
+    // audio. Sa kabutihang-palad, naka-encode ang mismong salita sa
+    // filename ("struggle_<word>.wav"), kaya ipares natin dun.
+    $audioByWord = [];
+    foreach ($request->file('audio_files', []) as $file) {
+        if (!$file) {
+            continue;
+        }
+        $original = $file->getClientOriginalName(); // e.g. struggle_frog.wav
+        if (preg_match('/^struggle_(.+)\.wav$/i', $original, $m)) {
+            $audioByWord[strtolower($m[1])] = $file;
+        }
+    }
+
     foreach ($words as $wordData) {
         $word = is_array($wordData) ? ($wordData['word'] ?? null) : $wordData;
         if (!$word) {
             continue;
         }
+        $cleanWord = strtolower($word);
+
+        $audioUrl = null;
+        if (isset($audioByWord[$cleanWord])) {
+            try {
+                $upload = cloudinary()->upload($audioByWord[$cleanWord]->getRealPath(), [
+                    'folder' => 'mispronunciations',
+                    'resource_type' => 'video', // Cloudinary treats audio as 'video' resource type
+                ]);
+                $audioUrl = $upload->getSecurePath();
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Mispronunciation audio upload failed: ' . $e->getMessage());
+            }
+            // Alisin agad para hindi na maulit kung magkataong paulit-ulit
+            // ang salita sa listahan.
+            unset($audioByWord[$cleanWord]);
+        }
 
         Mispronunciation::create([
             'student_id' => $validated['student_id'],
             'story_id' => $validated['story_id'],
-            'word' => strtolower($word),
+            'word' => $cleanWord,
             'total_attempts' => is_array($wordData) ? ($wordData['total_attempts'] ?? 1) : 1,
+            'audio_url' => $audioUrl,
         ]);
     }
 
@@ -145,10 +177,21 @@ class ClassEnrollmentController extends Controller
 // 📊 GET ALL MISPRONUNCIATION LOGS FOR TEACHER DASHBOARD
     public function getTeacherStudentLogs($teacher_id)
     {
+        // audio_url is pulled via a correlated subquery (not a plain
+        // selected column) because this query GROUPs BY word to collapse
+        // multiple attempts into one row — a plain column pick would be
+        // ambiguous/DB-dependent under GROUP BY. This grabs the most
+        // recent recording for that (student, story, word) combo instead.
         $logs = Mispronunciation::whereHas('student.classes', function ($query) use ($teacher_id) {
             $query->where('teacher_id', $teacher_id);
         })
-        ->selectRaw('student_id, story_id, word, MAX(created_at) as created_at, COUNT(*) as total_attempts')
+        ->selectRaw('student_id, story_id, word, MAX(created_at) as created_at, COUNT(*) as total_attempts,
+            (SELECT m2.audio_url FROM mispronunciations m2
+             WHERE m2.student_id = mispronunciations.student_id
+               AND m2.story_id = mispronunciations.story_id
+               AND m2.word = mispronunciations.word
+               AND m2.audio_url IS NOT NULL
+             ORDER BY m2.created_at DESC LIMIT 1) as audio_url')
         ->groupBy('student_id', 'story_id', 'word')
         ->with(['student', 'story'])
         ->orderByRaw('MAX(created_at) DESC')
