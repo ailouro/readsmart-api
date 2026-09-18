@@ -126,4 +126,17 @@ class ClassController extends Controller
             'message' => 'Students successfully added to the class!'
         ]);
     }
+
+    public function destroy($id)
+{
+    $class = SchoolClass::find($id); 
+
+    if (!$class) {
+        return response()->json(['message' => 'Class not found'], 404);
+    }
+
+    $class->delete();
+
+    return response()->json(['message' => 'Class deleted successfully'], 200);
+}
 }
