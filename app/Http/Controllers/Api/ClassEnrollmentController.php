@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SchoolClass;
 use App\Models\Student;
 use App\Models\StudentProgress;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Models\Mispronunciation;
@@ -417,5 +418,81 @@ public function saveProgress(Request $request)
     ], 201);
 }
 
+    // 🗑️ TEACHER: DELETE A CLASS
+    // Didn't exist before — the app was calling DELETE /api/classes/{id}
+    // with no matching route/method, hence the 405.
+    public function destroy($id)
+    {
+        $schoolClass = SchoolClass::find($id);
 
+        if (!$schoolClass) {
+            return response()->json(['message' => 'Class not found'], 404);
+        }
+
+        try {
+            // Detach pivot rows first (class_student, class_story) so no
+            // orphaned links remain pointing at a class that no longer exists.
+            $schoolClass->students()->detach();
+            $schoolClass->stories()->detach();
+
+            $schoolClass->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Class deleted successfully',
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to delete class: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    // 👥 TEACHER: LIST STUDENTS NOT YET IN THIS CLASS
+    // Powers the "Add to Class" sheet, which was calling
+    // GET /api/classes/{id}/available-students with nothing to answer it —
+    // that's why the sheet spun forever instead of erroring or listing
+    // anyone. Matches on grade_level (same grade as the class) and
+    // excludes students already attached via the class_student pivot.
+    public function availableStudents($classId)
+    {
+        $class = SchoolClass::findOrFail($classId);
+
+        $alreadyEnrolledIds = $class->students()->pluck('users.id');
+
+        $available = User::where('role', 'student')
+            ->where('grade_level', $class->grade_level)
+            ->whereNotIn('id', $alreadyEnrolledIds)
+            ->select('id', 'name', 'lrn', 'grade_level', 'section')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $available,
+        ], 200);
+    }
+
+    // ➕ TEACHER: ADD MULTIPLE EXISTING STUDENTS TO A CLASS AT ONCE
+    // The other half of the "Add to Class" sheet — it POSTs a
+    // {"student_ids": [...]} body to /api/classes/{id}/bulk-add-students
+    // after the admin/teacher checks off students from availableStudents().
+    public function bulkAddStudents(Request $request, $classId)
+    {
+        $request->validate([
+            'student_ids'   => 'required|array|min:1',
+            'student_ids.*' => 'integer|exists:users,id',
+        ]);
+
+        $class = SchoolClass::findOrFail($classId);
+
+        // syncWithoutDetaching so re-adding an already-enrolled student
+        // (e.g. a stale checkbox state) doesn't error or duplicate rows.
+        $class->students()->syncWithoutDetaching($request->student_ids);
+
+        return response()->json([
+            'success' => true,
+            'message' => count($request->student_ids) . ' student(s) added to class.',
+        ], 200);
+    }
 }

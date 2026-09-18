@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\SchoolClass;
 use App\Models\Student;
+use App\Models\User;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class ClassController extends Controller
 {
@@ -88,23 +90,32 @@ class ClassController extends Controller
 
     // --- BULK ADD STUDENT METHODS ---
 
+    // 🛠️ FIX: This used to query the `students` table (App\Models\Student),
+    // but SchoolClass::students() actually points at `users` via the
+    // class_student pivot (student_id column holds users.id). The
+    // `students` table turned out to have only 1 row total and 0 rows with
+    // teacher_id set — it's disconnected leftover data, not the real
+    // student roster. Switched to query `users` (role = student) so the
+    // ids returned here actually match what the pivot expects.
     public function getAvailableStudents($id)
     {
         $class = SchoolClass::findOrFail($id);
 
-        $enrolledIds = $class->students()->pluck('students.id')->toArray();
+        $enrolledIds = $class->students()->pluck('users.id')->toArray();
 
-        $query = Student::where('grade_level', $class->grade_level);
-        
+        $query = User::where('role', 'student')
+            ->where('grade_level', $class->grade_level);
+
         if (!empty($class->section) && $class->section !== 'N/A') {
             $query->where('section', $class->section);
         }
 
-        // 🔒 THE FIX: Only show students explicitly assigned to THIS teacher by the Admin, 
-        // OR students who are completely unassigned.
-        $query->where(function($q) use ($class) {
+        // Only show students explicitly assigned to THIS teacher, or
+        // students with no teacher assigned yet — same gating intent as
+        // before, just against the users table instead of students.
+        $query->where(function ($q) use ($class) {
             $q->where('teacher_id', $class->teacher_id)
-              ->orWhereNull('teacher_id'); 
+              ->orWhereNull('teacher_id');
         });
 
         $available = $query->whereNotIn('id', $enrolledIds)
@@ -121,7 +132,7 @@ class ClassController extends Controller
     {
         $request->validate([
             'student_ids' => 'required|array',
-            'student_ids.*' => 'exists:students,id'
+            'student_ids.*' => Rule::exists('users', 'id')->where('role', 'student'),
         ]);
 
         $class = SchoolClass::findOrFail($id);
