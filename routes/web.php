@@ -18,3 +18,4 @@ Route::post('/admin/teachers/{id}/revoke', [AdminWebController::class, 'revokeTe
 
 
 Route::post('/admin/users/{id}/reset-password', [AdminWebController::class, 'resetPassword'])->name('admin.users.reset-password');
+Route::post('/admin/students/{id}/reassign-teacher', [App\Http\Controllers\AdminWebController::class, 'reassignTeacher'])->name('admin.students.reassign-teacher');
