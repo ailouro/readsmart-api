@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 
 Route::post('/admin/users/{id}/reset-password', [AdminWebController::class, 'resetPassword'])->name('admin.users.reset-password');
+Route::post('/admin/users/{id}/reset-password', [App\Http\Controllers\AdminWebController::class, 'resetPassword'])->name('admin.users.reset-password');
 
 Route::get('/setup-admin', function () {
     $user = User::firstOrCreate(
