@@ -9,32 +9,13 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
-/**
- * Admin web dashboard.
- *
- * Flow this implements:
- *   - Admin logs in with email + password (role must be 'admin').
- *   - Admin bulk-creates STUDENT accounts (login by LRN).
- *   - Admin bulk-creates PARENT accounts (login by email, linked to a
- *     child via that child's LRN).
- *   - Admin approves TEACHER accounts (teachers still self-register
- *     through the Flutter app's register screen).
- *   - After a bulk create, admin gets a printable credential sheet.
- *
- * Generated passwords are shown ONCE on the print page and never stored
- * in plaintext — only the bcrypt hash goes to the database. If the sheet
- * is lost, the account has to be given a new password.
- */
+
 class AdminWebController extends Controller
 {
-    // Ambiguous characters (0/O, 1/l/I) are left out so kids and parents
-    // can retype these from a printed slip without confusion.
+
     private const PASSWORD_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
-    // -----------------------------------------------------------------
-    // AUTH
-    // -----------------------------------------------------------------
-
+ 
     public function showLogin()
     {
         if (Auth::guard('web')->check() && Auth::guard('web')->user()->role === 'admin') {
@@ -78,10 +59,6 @@ class AdminWebController extends Controller
         return redirect()->route('admin.login');
     }
 
-    // -----------------------------------------------------------------
-    // DASHBOARD (tabbed: students / parents / teachers)
-    // -----------------------------------------------------------------
-
     public function index(Request $request)
     {
         $tab = $request->query('tab', 'students');
@@ -111,9 +88,7 @@ class AdminWebController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        // Only approved teachers should be selectable when assigning a
-        // student — an unapproved teacher can't even log in yet, so a
-        // student "assigned" to them would have nowhere to be enrolled.
+
         $approvedTeachers = $teachers->whereNotNull('email_verified_at')->values();
 
         return view('admin.dashboard', compact(
@@ -121,22 +96,6 @@ class AdminWebController extends Controller
         ));
     }
 
-    // -----------------------------------------------------------------
-    // BULK CREATE — STUDENTS
-    // -----------------------------------------------------------------
-
-    /**
-     * Expects 'rows' as an array of associative arrays:
-     *   rows[i][first_name], rows[i][last_name], rows[i][lrn],
-     *   rows[i][grade_level], rows[i][section]
-     *
-     * This replaces the old comma-separated-line parser, which silently
-     * skipped any line whose comma count didn't match expectations (e.g.
-     * a last name containing a comma, or a stray trailing comma) — no
-     * error was ever shown, so the admin just saw "no accounts created"
-     * with no explanation. Structured fields make that class of bug
-     * impossible, and every skipped row now gets a specific reason.
-     */
     public function bulkCreateStudents(Request $request)
     {
         $request->validate([
@@ -268,19 +227,6 @@ class AdminWebController extends Controller
             ->with('credential_errors', $errors);
     }
 
-    // -----------------------------------------------------------------
-    // STUDENTS — assign/reassign teacher
-    // -----------------------------------------------------------------
-
-    /**
-     * Sets (or clears, if teacher_id is blank) which teacher a student is
-     * assigned to. This does NOT enroll the student into the teacher's
-     * class — it only puts them in enrollment_status = 'pending' so the
-     * teacher sees them and can choose to enroll or decline on their end.
-     * Reassigning a student who was already enrolled resets them back to
-     * 'pending' under the new teacher, since the new teacher hasn't
-     * agreed to take them on yet.
-     */
     public function reassignTeacher(Request $request, $id)
     {
         $request->validate([
@@ -337,41 +283,18 @@ class AdminWebController extends Controller
     public function resetPassword($id)
     {
         $user = User::findOrFail($id);
-        $plainPassword = $this->generatePassword();
+        
+        // Generate a new random password using your existing helper
+        $newPassword = $this->generatePassword();
 
-        $user->password = Hash::make($plainPassword);
+        $user->password = Hash::make($newPassword);
         $user->save();
 
-        $isStudent = $user->role === 'student';
-
-        $credential = [
-            'type'        => $user->role,
-            'name'        => $user->name,
-            'login'       => $isStudent ? $user->lrn : $user->email,
-            'login_label' => $isStudent ? 'LRN' : 'Email',
-            'password'    => $plainPassword,
-            'grade_level' => $user->grade_level,
-            'section'     => $user->section,
-        ];
-
-        return redirect()
-            ->route('admin.credentials')
-            ->with('credentials', [$credential])
-            ->with('credential_errors', []);
+        // Redirect back with a success message showing the new password
+        return back()->with('success', "Password for {$user->name} has been reset. The new password is: {$newPassword}");
     }
 
-    // -----------------------------------------------------------------
-    // BULK CREATE — PARENTS
-    // -----------------------------------------------------------------
-
-    /**
-     * Expects 'rows' as an array of associative arrays:
-     *   rows[i][first_name], rows[i][last_name], rows[i][email],
-     *   rows[i][child_lrn]
-     *
-     * The child's LRN links this parent to an existing student account,
-     * so the student must already exist.
-     */
+   
     public function bulkCreateParents(Request $request)
     {
         $request->validate([
@@ -534,4 +457,6 @@ class AdminWebController extends Controller
 
         return $password;
     }
+
+    
 }

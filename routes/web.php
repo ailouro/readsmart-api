@@ -6,6 +6,8 @@ use App\Http\Middleware\EnsureAdmin;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 
+Route::post('/admin/users/{id}/reset-password', [AdminWebController::class, 'resetPassword'])->name('admin.users.reset-password');
+
 Route::get('/setup-admin', function () {
     $user = User::firstOrCreate(
         ['email' => 'admin@readsmart.com'],
