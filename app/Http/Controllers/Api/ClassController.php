@@ -4,7 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Models\SchoolClass; // O kung ano man ang Model name mo
+use App\Models\SchoolClass;
+use App\Models\Student;
 use Illuminate\Support\Str;
 
 class ClassController extends Controller
@@ -15,13 +16,9 @@ class ClassController extends Controller
             'name'       => 'required|string',
             'section'    => 'nullable|string',
             'grade_level' => 'required',
-            'teacher_id' => 'nullable|exists:users,id', // o 'teachers,id'
+            'teacher_id' => 'nullable|exists:users,id',
         ]);
 
-        // 🛠️ FIX: auth()->id() checks the default ('web') guard, which is
-        // always null for JWT-authenticated API requests. Use the 'api'
-        // guard explicitly so the logged-in teacher's real ID is used
-        // instead of silently falling back to 1.
         $resolvedTeacherId = $request->teacher_id ?? auth('api')->id();
 
         if (!$resolvedTeacherId) {
@@ -32,11 +29,11 @@ class ClassController extends Controller
         }
 
         $class = SchoolClass::create([
-        'name'       => $request->name,
-        'section'    => $request->section,
-        'teacher_id' => $resolvedTeacherId,
-        'code'       => strtoupper(Str::random(6)), // Auto-generate ng 6-character class code (hal. X7K2P9)
-    ]);
+            'name'       => $request->name,
+            'section'    => $request->section,
+            'teacher_id' => $resolvedTeacherId,
+            'code'       => strtoupper(Str::random(6)),
+        ]);
 
         return response()->json([
             'status'  => 'success',
@@ -45,7 +42,6 @@ class ClassController extends Controller
         ], 201);
     }
 
-    // Get all stories assigned to a specific class
     public function getClassStories($classId)
     {
         $class = SchoolClass::with(['stories.pages', 'stories.quiz'])->findOrFail($classId);
@@ -56,8 +52,7 @@ class ClassController extends Controller
         ], 200);
     }
 
-// Assign an existing library story to a class
-public function assignStory(Request $request, $id)
+    public function assignStory(Request $request, $id)
     {
         $validated = $request->validate([
             'story_id' => 'required|array',
@@ -67,7 +62,6 @@ public function assignStory(Request $request, $id)
 
         $class = SchoolClass::findOrFail($id);
 
-        // Attach each story with its test_type
         $testType = $validated['test_type'] ?? 'post_test';
         $syncData = [];
         foreach ($validated['story_id'] as $storyId) {
@@ -82,15 +76,54 @@ public function assignStory(Request $request, $id)
         ], 200);
     }
 
-public function show($id)
-{
-    // Make sure 'students' relationship is included
-    $class = SchoolClass::with(['stories.pages', 'stories.quiz', 'students'])->findOrFail($id);
+    public function show($id)
+    {
+        $class = SchoolClass::with(['stories.pages', 'stories.quiz', 'students'])->findOrFail($id);
 
-    return response()->json([
-        'status' => 'success',
-        'data' => $class
-    ]);
-}
+        return response()->json([
+            'status' => 'success',
+            'data' => $class
+        ]);
+    }
 
+    // --- BULK ADD STUDENT METHODS ---
+
+    public function getAvailableStudents($id)
+    {
+        $class = SchoolClass::findOrFail($id);
+
+        $enrolledIds = $class->students()->pluck('students.id')->toArray();
+
+        $query = Student::where('grade_level', $class->grade_level);
+        
+        if (!empty($class->section) && $class->section !== 'N/A') {
+            $query->where('section', $class->section);
+        }
+
+        $available = $query->whereNotIn('id', $enrolledIds)
+            ->orderBy('last_name')
+            ->get(['id', 'first_name', 'last_name', 'name', 'lrn']);
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $available
+        ]);
+    }
+
+    public function bulkAddStudents(Request $request, $id)
+    {
+        $request->validate([
+            'student_ids' => 'required|array',
+            'student_ids.*' => 'exists:students,id'
+        ]);
+
+        $class = SchoolClass::findOrFail($id);
+        
+        $class->students()->syncWithoutDetaching($request->student_ids);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Students successfully added to the class!'
+        ]);
+    }
 }

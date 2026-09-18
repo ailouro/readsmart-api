@@ -62,6 +62,8 @@ Route::get('/parents/{parentId}/dashboard', [ParentController::class, 'dashboard
 Route::post('/student-self-corrections', [SelfCorrectionController::class, 'storeSelfCorrections']);
 Route::get('/teachers/{id}/self-corrections', [SelfCorrectionController::class, 'teacherSelfCorrections']);
 Route::post('/pages/{page}/multi-script-audio', [StoryController::class, 'generateMultiScriptAudio']);
+Route::get('/classes/{id}/available-students', [App\Http\Controllers\Api\ClassController::class, 'getAvailableStudents']);
+Route::post('/classes/{id}/bulk-add-students', [App\Http\Controllers\Api\ClassController::class, 'bulkAddStudents']);
 
 Route::get('/test', function () {
     return response()->json([
