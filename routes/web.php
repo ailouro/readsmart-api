@@ -3,6 +3,8 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AdminWebController;
 use App\Http\Middleware\EnsureAdmin;
+use App\Models\User;
+use Illuminate\Support\Facades\Hash;
 
 Route::get('/setup-admin', function () {
     $user = User::firstOrCreate(
@@ -35,10 +37,12 @@ Route::middleware(EnsureAdmin::class)->group(function () {
 
     Route::post('/admin/students/bulk', [AdminWebController::class, 'bulkCreateStudents'])
         ->name('admin.students.bulk');
-    Route::post('/students/{id}/reassign-teacher', [AdminWebController::class, 'reassignTeacher'])
-    ->name('students.reassign-teacher');
-    Route::post('/users/{id}/reset-password', [AdminWebController::class, 'resetPassword'])
-    ->name('users.reset-password');
+        
+    // Itinama ang URL paths at route names dito
+    Route::post('/admin/students/{id}/reassign-teacher', [AdminWebController::class, 'reassignTeacher'])
+        ->name('admin.students.reassign-teacher');
+    Route::post('/admin/users/{id}/reset-password', [AdminWebController::class, 'resetPassword'])
+        ->name('admin.students.reset-password');
     
     Route::post('/admin/parents/bulk', [AdminWebController::class, 'bulkCreateParents'])
         ->name('admin.parents.bulk');
