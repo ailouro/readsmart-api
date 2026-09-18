@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\StoryController;
 use App\Http\Controllers\StoryAudioController;
 use App\Http\Controllers\StudentClassController;
+use App\Http\Controllers\TeacherEnrollmentController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ParentController;
 use App\Http\Controllers\Api\ClassEnrollmentController;
@@ -65,7 +66,9 @@ Route::get('/teachers/{id}/self-corrections', [SelfCorrectionController::class, 
 Route::post('/pages/{page}/multi-script-audio', [StoryController::class, 'generateMultiScriptAudio']);
 Route::get('/classes/{id}/available-students', [App\Http\Controllers\Api\ClassController::class, 'getAvailableStudents']);
 Route::post('/classes/{id}/bulk-add-students', [App\Http\Controllers\Api\ClassController::class, 'bulkAddStudents']);
-
+Route::get('/teachers/{teacherId}/pending-students', [TeacherEnrollmentController::class, 'pendingStudents']);
+Route::post('/teachers/{teacherId}/students/{studentId}/enroll', [TeacherEnrollmentController::class, 'enroll']);
+Route::post('/teachers/{teacherId}/students/{studentId}/decline', [TeacherEnrollmentController::class, 'decline']);
 Route::get('/test', function () {
     return response()->json([
         'message' => 'Laravel API Connected Successfully'

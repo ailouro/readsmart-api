@@ -111,8 +111,13 @@ class AdminWebController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
+        // Only approved teachers should be selectable when assigning a
+        // student — an unapproved teacher can't even log in yet, so a
+        // student "assigned" to them would have nowhere to be enrolled.
+        $approvedTeachers = $teachers->whereNotNull('email_verified_at')->values();
+
         return view('admin.dashboard', compact(
-            'tab', 'students', 'parents', 'childrenByParent', 'teachers'
+            'tab', 'students', 'parents', 'childrenByParent', 'teachers', 'approvedTeachers'
         ));
     }
 
@@ -151,6 +156,7 @@ class AdminWebController extends Controller
             $lrn        = trim((string) ($row['lrn']         ?? ''));
             $gradeLevel = trim((string) ($row['grade_level'] ?? ''));
             $section    = trim((string) ($row['section']     ?? ''));
+            $teacherIdRaw = trim((string) ($row['teacher_id'] ?? ''));
 
             // Skip fully blank rows without complaint — those are just
             // unused rows left over in the grid, not a mistake.
@@ -180,12 +186,30 @@ class AdminWebController extends Controller
                 continue;
             }
 
+            // Teacher assignment is optional. A bad/unapproved id doesn't
+            // fail the whole row — the student is still created, just
+            // left unassigned, with a warning so the admin can fix it
+            // from the "Existing students" table afterward.
+            $teacherId = null;
+            if ($teacherIdRaw !== '') {
+                $validTeacher = User::where('id', $teacherIdRaw)
+                    ->where('role', 'teacher')
+                    ->whereNotNull('email_verified_at')
+                    ->exists();
+
+                if ($validTeacher) {
+                    $teacherId = (int) $teacherIdRaw;
+                } else {
+                    $errors[] = "Row {$rowNum}: the selected teacher is not valid or not yet approved — {$firstName} {$lastName} was created unassigned.";
+                }
+            }
+
             $seenLrns[$lrn] = $rowNum;
             $plainPassword  = $this->generatePassword();
 
             try {
                 DB::transaction(function () use (
-                    $firstName, $lastName, $lrn, $gradeLevel, $section, $plainPassword
+                    $firstName, $lastName, $lrn, $gradeLevel, $section, $plainPassword, $teacherId
                 ) {
                     $user = User::create([
                         'first_name'  => $firstName,
@@ -198,7 +222,15 @@ class AdminWebController extends Controller
                         'password'    => Hash::make($plainPassword),
                     ]);
 
-                    Student::create([
+                    // Direct assignment (not mass-assignment) so this works
+                    // regardless of whether teacher_id/enrollment_status are
+                    // in User's $fillable — same approach used elsewhere in
+                    // this app for parent_id.
+                    $user->teacher_id = $teacherId;
+                    $user->enrollment_status = $teacherId ? 'pending' : 'unassigned';
+                    $user->save();
+
+                    $student = Student::create([
                         'user_id'     => $user->id,
                         'first_name'  => $firstName,
                         'last_name'   => $lastName,
@@ -206,6 +238,10 @@ class AdminWebController extends Controller
                         'grade_level' => $gradeLevel,
                         'section'     => $section,
                     ]);
+
+                    $student->teacher_id = $teacherId;
+                    $student->enrollment_status = $teacherId ? 'pending' : 'unassigned';
+                    $student->save();
                 });
 
                 $created[] = [
@@ -230,6 +266,98 @@ class AdminWebController extends Controller
             ->route('admin.credentials')
             ->with('credentials', $created)
             ->with('credential_errors', $errors);
+    }
+
+    // -----------------------------------------------------------------
+    // STUDENTS — assign/reassign teacher
+    // -----------------------------------------------------------------
+
+    /**
+     * Sets (or clears, if teacher_id is blank) which teacher a student is
+     * assigned to. This does NOT enroll the student into the teacher's
+     * class — it only puts them in enrollment_status = 'pending' so the
+     * teacher sees them and can choose to enroll or decline on their end.
+     * Reassigning a student who was already enrolled resets them back to
+     * 'pending' under the new teacher, since the new teacher hasn't
+     * agreed to take them on yet.
+     */
+    public function reassignTeacher(Request $request, $id)
+    {
+        $request->validate([
+            'teacher_id' => 'nullable',
+        ]);
+
+        $student = User::where('role', 'student')->findOrFail($id);
+
+        $teacherIdRaw = trim((string) $request->input('teacher_id', ''));
+        $teacherId = null;
+
+        if ($teacherIdRaw !== '') {
+            $teacher = User::where('id', $teacherIdRaw)
+                ->where('role', 'teacher')
+                ->whereNotNull('email_verified_at')
+                ->first();
+
+            if (!$teacher) {
+                return back()->withErrors([
+                    'teacher_id' => 'That teacher account is not approved or does not exist.',
+                ]);
+            }
+
+            $teacherId = $teacher->id;
+        }
+
+        DB::transaction(function () use ($student, $teacherId) {
+            $student->teacher_id = $teacherId;
+            $student->enrollment_status = $teacherId ? 'pending' : 'unassigned';
+            $student->save();
+
+            $studentRow = Student::where('user_id', $student->id)->first();
+            if ($studentRow) {
+                $studentRow->teacher_id = $teacherId;
+                $studentRow->enrollment_status = $teacherId ? 'pending' : 'unassigned';
+                $studentRow->save();
+            }
+        });
+
+        return back()->with('success', $teacherId
+            ? "{$student->name} has been assigned to a teacher and is now pending their enrollment."
+            : "{$student->name} is now unassigned from any teacher.");
+    }
+
+    // -----------------------------------------------------------------
+    // ACCOUNTS — reset password (student, parent, or teacher)
+    // -----------------------------------------------------------------
+
+    /**
+     * Generates a brand-new password for any account and reuses the same
+     * "shown once, never stored in plaintext" credential-sheet flow as
+     * bulk create. The old password stops working immediately.
+     */
+    public function resetPassword($id)
+    {
+        $user = User::findOrFail($id);
+        $plainPassword = $this->generatePassword();
+
+        $user->password = Hash::make($plainPassword);
+        $user->save();
+
+        $isStudent = $user->role === 'student';
+
+        $credential = [
+            'type'        => $user->role,
+            'name'        => $user->name,
+            'login'       => $isStudent ? $user->lrn : $user->email,
+            'login_label' => $isStudent ? 'LRN' : 'Email',
+            'password'    => $plainPassword,
+            'grade_level' => $user->grade_level,
+            'section'     => $user->section,
+        ];
+
+        return redirect()
+            ->route('admin.credentials')
+            ->with('credentials', [$credential])
+            ->with('credential_errors', []);
     }
 
     // -----------------------------------------------------------------

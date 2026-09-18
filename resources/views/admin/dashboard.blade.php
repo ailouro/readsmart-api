@@ -66,12 +66,12 @@
             padding: 0; border: 1px solid #cbd5e1;
         }
         table.grid td.col-remove, table.grid th.col-remove { border-right: 1px solid #94a3b8; width: 40px; text-align: center; }
-        table.grid input {
+        table.grid input, table.grid select {
             width: 100%; border: 0; padding: 9px 12px; font-size: 13.5px;
             font-family: ui-monospace, Menlo, Consolas, monospace;
             background: transparent;
         }
-        table.grid input:focus { outline: 2px solid #2563eb; outline-offset: -2px; background: #fff; position: relative; z-index: 2; }
+        table.grid input:focus, table.grid select:focus { outline: 2px solid #2563eb; outline-offset: -2px; background: #fff; position: relative; z-index: 2; }
         .row-remove-btn {
             border: 0; background: transparent; color: #cbd5e1; cursor: pointer;
             font-size: 17px; line-height: 1; padding: 9px; width: 100%;
@@ -82,6 +82,12 @@
             margin-right: 8px;
         }
         .btn-add:hover { background: #eff6ff; }
+        .inline-form { display: flex; gap: 6px; align-items: center; margin: 0; }
+        .inline-form select {
+            padding: 5px 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px;
+        }
+        .btn-teal { background: #0891b2; }
+        .btn-teal:hover { background: #0e7490; }
     </style>
 </head>
 <body>
@@ -126,7 +132,7 @@
                 <form method="POST" action="{{ route('admin.students.bulk') }}">
                     @csrf
                     <div class="grid-wrap">
-                        <table class="grid" id="studentGrid" data-columns="first_name,last_name,lrn,grade_level,section">
+                        <table class="grid" id="studentGrid" data-columns="first_name,last_name,lrn,grade_level,section,teacher_id">
                             <thead>
                                 <tr>
                                     <th>First Name</th>
@@ -134,6 +140,7 @@
                                     <th>LRN</th>
                                     <th>Grade Level</th>
                                     <th>Section</th>
+                                    <th>Assign to Teacher</th>
                                     <th class="col-remove"></th>
                                 </tr>
                             </thead>
@@ -149,7 +156,10 @@
                 <h2>Existing students</h2>
                 <table>
                     <thead>
-                        <tr><th>Name</th><th>LRN</th><th>Grade</th><th>Section</th><th>Parent linked</th></tr>
+                        <tr>
+                            <th>Name</th><th>LRN</th><th>Grade</th><th>Section</th><th>Parent linked</th>
+                            <th>Teacher</th><th>Enrollment</th><th>Reset password</th>
+                        </tr>
                     </thead>
                     <tbody>
                         @forelse ($students as $s)
@@ -165,9 +175,37 @@
                                         <span class="pill pill-wait">None</span>
                                     @endif
                                 </td>
+                                <td>
+                                    <form class="inline-form" method="POST" action="{{ route('admin.students.reassign-teacher', $s->id) }}">
+                                        @csrf
+                                        <select name="teacher_id">
+                                            <option value="">— Unassigned —</option>
+                                            @foreach ($approvedTeachers as $t)
+                                                <option value="{{ $t->id }}" {{ (string) $s->teacher_id === (string) $t->id ? 'selected' : '' }}>{{ $t->name }}</option>
+                                            @endforeach
+                                        </select>
+                                        <button type="submit" class="btn btn-sm">Save</button>
+                                    </form>
+                                </td>
+                                <td>
+                                    @if ($s->enrollment_status === 'enrolled')
+                                        <span class="pill pill-ok">Enrolled</span>
+                                    @elseif ($s->enrollment_status === 'pending')
+                                        <span class="pill pill-wait">Pending teacher</span>
+                                    @else
+                                        <span class="pill pill-wait">Unassigned</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    <form method="POST" action="{{ route('admin.users.reset-password', $s->id) }}"
+                                          onsubmit="return confirm('Reset password for {{ $s->name }}? The old password will stop working immediately.');" style="margin:0;">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-teal">Reset password</button>
+                                    </form>
+                                </td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="empty">No student accounts yet.</td></tr>
+                            <tr><td colspan="8" class="empty">No student accounts yet.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -280,6 +318,12 @@
     </div>
 
     <script>
+        // List of approved teachers, injected from the server, used to
+        // populate the "Assign to Teacher" dropdown in the bulk-create
+        // grid. Kept as plain data (id + name) — no PHP round-trip needed
+        // per row.
+        const APPROVED_TEACHERS = @json($approvedTeachers->map(fn($t) => ['id' => $t->id, 'name' => $t->name])->values());
+
         // ---------------------------------------------------------------
         // Editable spreadsheet-style grid for bulk student/parent create.
         // Each <table class="grid"> declares its field order via
@@ -287,10 +331,35 @@
         // rows[i][field] so Laravel receives a structured array — no more
         // comma-counting, so a stray comma in a name can't silently drop
         // a whole row.
+        //
+        // The "teacher_id" column is special-cased to render a <select>
+        // of approved teachers instead of a free-text <input> — everything
+        // else (reindexing, row add/remove) treats it the same way via the
+        // generic [data-col="..."] attribute selector.
         // ---------------------------------------------------------------
 
         function gridColumns(table) {
             return table.dataset.columns.split(',');
+        }
+
+        function buildTeacherSelect(col, value) {
+            const select = document.createElement('select');
+            select.dataset.col = col;
+
+            const blank = document.createElement('option');
+            blank.value = '';
+            blank.textContent = '— Unassigned —';
+            select.appendChild(blank);
+
+            APPROVED_TEACHERS.forEach((t) => {
+                const opt = document.createElement('option');
+                opt.value = t.id;
+                opt.textContent = t.name;
+                select.appendChild(opt);
+            });
+
+            if (value) select.value = String(value);
+            return select;
         }
 
         function buildRow(table, values) {
@@ -299,12 +368,19 @@
 
             columns.forEach((col) => {
                 const td = document.createElement('td');
-                const input = document.createElement('input');
-                input.type = 'text';
-                input.dataset.col = col;
-                input.value = values && values[col] ? values[col] : '';
-                input.addEventListener('paste', (e) => handleGridPaste(e, table, tr, input));
-                td.appendChild(input);
+                let field;
+
+                if (col === 'teacher_id') {
+                    field = buildTeacherSelect(col, values && values[col]);
+                } else {
+                    field = document.createElement('input');
+                    field.type = 'text';
+                    field.dataset.col = col;
+                    field.value = values && values[col] ? values[col] : '';
+                    field.addEventListener('paste', (e) => handleGridPaste(e, table, tr, field));
+                }
+
+                td.appendChild(field);
                 tr.appendChild(td);
             });
 
@@ -322,7 +398,8 @@
                 } else {
                     // keep at least one row, just clear it
                     columns.forEach((col) => {
-                        tr.querySelector(`input[data-col="${col}"]`).value = '';
+                        const field = tr.querySelector(`[data-col="${col}"]`);
+                        if (field) field.value = '';
                     });
                 }
                 reindexGrid(table);
@@ -338,8 +415,8 @@
             const rows = table.querySelectorAll('tbody tr');
             rows.forEach((tr, i) => {
                 columns.forEach((col) => {
-                    const input = tr.querySelector(`input[data-col="${col}"]`);
-                    input.name = `rows[${i}][${col}]`;
+                    const field = tr.querySelector(`[data-col="${col}"]`);
+                    if (field) field.name = `rows[${i}][${col}]`;
                 });
             });
         }

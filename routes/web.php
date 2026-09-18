@@ -35,7 +35,11 @@ Route::middleware(EnsureAdmin::class)->group(function () {
 
     Route::post('/admin/students/bulk', [AdminWebController::class, 'bulkCreateStudents'])
         ->name('admin.students.bulk');
-
+    Route::post('/students/{id}/reassign-teacher', [AdminWebController::class, 'reassignTeacher'])
+    ->name('students.reassign-teacher');
+    Route::post('/users/{id}/reset-password', [AdminWebController::class, 'resetPassword'])
+    ->name('users.reset-password');
+    
     Route::post('/admin/parents/bulk', [AdminWebController::class, 'bulkCreateParents'])
         ->name('admin.parents.bulk');
 
