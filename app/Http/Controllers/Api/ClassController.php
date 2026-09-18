@@ -100,6 +100,13 @@ class ClassController extends Controller
             $query->where('section', $class->section);
         }
 
+        // 🔒 THE FIX: Only show students explicitly assigned to THIS teacher by the Admin, 
+        // OR students who are completely unassigned.
+        $query->where(function($q) use ($class) {
+            $q->where('teacher_id', $class->teacher_id)
+              ->orWhereNull('teacher_id'); 
+        });
+
         $available = $query->whereNotIn('id', $enrolledIds)
             ->orderBy('last_name')
             ->get(['id', 'first_name', 'last_name', 'name', 'lrn']);
@@ -128,15 +135,15 @@ class ClassController extends Controller
     }
 
     public function destroy($id)
-{
-    $class = SchoolClass::find($id); 
+    {
+        $class = SchoolClass::find($id); 
 
-    if (!$class) {
-        return response()->json(['message' => 'Class not found'], 404);
+        if (!$class) {
+            return response()->json(['message' => 'Class not found'], 404);
+        }
+
+        $class->delete();
+
+        return response()->json(['message' => 'Class deleted successfully'], 200);
     }
-
-    $class->delete();
-
-    return response()->json(['message' => 'Class deleted successfully'], 200);
-}
 }
