@@ -46,6 +46,16 @@ class GoogleService
             // 3. Gumawa ng kakaibang filename para sa slide part na ito
             $filename = "story_{$storyId}_slide_{$slideIndex}_script_{$scriptIndex}";
 
+            // Sanity check: kung wala/blangko ang CLOUDINARY_URL, sasabog
+            // ang Cloudinary SDK sa isang malabong "array offset on null"
+            // error. I-catch na dito nang maaga para malinaw agad ang
+            // dahilan sa halip na yung cryptic na PHP warning.
+            if (empty(config('cloudinary.cloud_url')) && empty(env('CLOUDINARY_URL'))) {
+                return [
+                    'error' => 'Cloudinary is not configured on this server (CLOUDINARY_URL is missing/empty). Set it in your hosting provider\'s environment variables.',
+                ];
+            }
+
             // 4. I-save muna nang temporary sa local tmp (kailangan ito ng Cloudinary SDK
             //    bilang input path), tapos i-upload sa Cloudinary, tapos burahin agad
             //    ang local temp file. Wala nang natitirang audio sa Railway disk.
