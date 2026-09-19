@@ -12,13 +12,35 @@ class GoogleService
             // 1. Libreng Google TTS URL (Walang API key na kailangan)
             $ttsUrl = "https://translate.google.com/translate_tts?ie=UTF-8&tl=" . $lang . "&client=tw-ob&q=" . urlencode($text);
 
-            // 2. Tawagin ang Google gamit ang Laravel Http Client para makuha ang audio bytes
+            // 2. Tawagin ang Google gamit ang Laravel Http Client para makuha ang audio bytes.
+            //    Nagdagdag ng Referer -- kadalasang kailangan ito ng
+            //    translate_tts bago siya sumagot ng audio sa halip na
+            //    mag-403/block, lalo na mula sa cloud/server IPs (Railway,
+            //    atbp.) kumpara sa browser/residential IPs.
             $response = Http::withHeaders([
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Referer' => 'https://translate.google.com/',
             ])->get($ttsUrl);
 
             if ($response->failed()) {
-                return ['error' => 'Failed to fetch audio from voice engine'];
+                // Ipakita ang aktwal na status code + unang bahagi ng
+                // response body -- kadalasan dito makikita kung talagang
+                // na-block/rate-limited tayo ni Google (403/429) o ibang
+                // dahilan.
+                $snippet = substr($response->body(), 0, 200);
+                return [
+                    'error' => "Google TTS fetch failed (HTTP {$response->status()}): {$snippet}",
+                ];
+            }
+
+            $audioBytes = $response->body();
+            if (empty($audioBytes) || strlen($audioBytes) < 100) {
+                // Minsan 200 OK pa rin ang sagot ni Google pero blangko o
+                // sobrang liit ang laman (hal. error page o captcha),
+                // hindi talaga valid na audio.
+                return [
+                    'error' => 'Google TTS returned an empty/invalid audio response (likely rate-limited or blocked).',
+                ];
             }
 
             // 3. Gumawa ng kakaibang filename para sa slide part na ito
@@ -28,13 +50,22 @@ class GoogleService
             //    bilang input path), tapos i-upload sa Cloudinary, tapos burahin agad
             //    ang local temp file. Wala nang natitirang audio sa Railway disk.
             $tmpPath = tempnam(sys_get_temp_dir(), 'tts_') . '.mp3';
-            file_put_contents($tmpPath, $response->body());
+            file_put_contents($tmpPath, $audioBytes);
 
-            $upload = cloudinary()->upload($tmpPath, [
-                'folder' => 'story_audio',
-                'public_id' => $filename,
-                'resource_type' => 'video', // Cloudinary treats audio files as 'video' resource type
-            ]);
+            try {
+                $upload = cloudinary()->upload($tmpPath, [
+                    'folder' => 'story_audio',
+                    'public_id' => $filename,
+                    'resource_type' => 'video', // Cloudinary treats audio files as 'video' resource type
+                ]);
+            } catch (\Exception $uploadError) {
+                @unlink($tmpPath);
+                // Ihiwalay ang Cloudinary errors sa Google TTS errors para
+                // klaro agad kung saan talaga nagkaproblema.
+                return [
+                    'error' => 'Cloudinary upload failed: ' . $uploadError->getMessage(),
+                ];
+            }
 
             @unlink($tmpPath); // linisin ang temp file
 
