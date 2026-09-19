@@ -101,14 +101,21 @@ class StoryAudioController extends Controller
 
     /**
      * Hakbang C: I-save o i-update ang text/script ng isang partikular na page/slide sa DB.
+     *
+     * 🛠️ FIX: dati iisang "audio_script" string lang ang tinatanggap dito,
+     * kaya kapag maraming script segments ang isang slide (multi-script
+     * editor sa frontend), na-o-overwrite/nababawasan ito sa isa na lang
+     * tuwing may nagse-save. Ngayon tinatanggap na ang "scripts" bilang
+     * array, tugma sa ipinapadala na ng Flutter editor.
      */
     public function updateSlideScript(Request $request, $storyId, $slideIndex)
     {
         $request->validate([
-            'audio_script' => 'required|string'
+            'scripts' => 'required|array|min:1',
+            'scripts.*' => 'required|string',
         ]);
 
-        $newScript = $request->input('audio_script');
+        $scripts = $request->input('scripts');
 
         $story = Story::find($storyId);
         if (!$story) {
@@ -120,7 +127,7 @@ class StoryAudioController extends Controller
             return response()->json(['error' => 'Slide page not found at index ' . $slideIndex], 404);
         }
 
-        $page->audio_scripts = [$newScript];
+        $page->audio_scripts = $scripts;
         $page->save();
 
         return response()->json([
