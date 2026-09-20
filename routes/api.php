@@ -36,6 +36,7 @@ Route::get('/student/{student_id}/classes', [StudentClassController::class, 'myC
 Route::get('/stories', [StoryController::class, 'index']);
 Route::post('/stories', [StoryController::class, 'store']);
 Route::delete('/stories/{id}', [StoryController::class, 'destroy']);
+Route::put('/stories/{id}/update-meta', [StoryController::class, 'updateMeta']);
 Route::delete('/classes/{id}', [ClassController::class, 'destroy']);
 Route::get('/stories/level/{level}', [StoryController::class, 'getStoriesByLevel']);
 Route::get('/stories/{storyId}/quiz', [StoryController::class, 'getQuizByStory']);
