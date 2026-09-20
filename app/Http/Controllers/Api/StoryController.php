@@ -395,6 +395,41 @@ class StoryController extends Controller
 }
     
  
+    /**
+     * 🛠️ BAGO: I-update ang Story Type (pre_test/post_test) at/o Grade Level
+     * ng isang kwento. Dating tinatawag ng Flutter app ang isang PUT route
+     * na hindi naka-register (PUT /stories/{id}), kaya nag-405. Ito ang
+     * tamang endpoint, kasunod ng convention ng update-script route.
+     */
+    public function updateMeta(Request $request, $id)
+    {
+        $story = Story::find($id);
+
+        if (!$story) {
+            return response()->json(['message' => 'Story not found'], 404);
+        }
+
+        $validated = $request->validate([
+            'story_type'  => 'nullable|string|in:pre_test,post_test',
+            'grade_level' => 'nullable|string|in:Grade 5,Grade 6',
+        ]);
+
+        if (array_key_exists('story_type', $validated) && $validated['story_type'] !== null) {
+            $story->story_type = $validated['story_type'];
+        }
+        if (array_key_exists('grade_level', $validated) && $validated['grade_level'] !== null) {
+            $story->grade_level = $validated['grade_level'];
+        }
+
+        $story->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Story info updated successfully!',
+            'story'   => $story,
+        ], 200);
+    }
+
     public function destroy($id)
     {
         $story = Story::with('pages')->find($id);
