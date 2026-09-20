@@ -10,7 +10,11 @@ return new class extends Migration
     {
         Schema::table('stories', function (Blueprint $table) {
             if (!Schema::hasColumn('stories', 'grade_level')) {
-                $table->string('grade_level')->nullable()->default('Grade 5');
+                // Intentionally no ->default(...) here: existing stories
+                // should stay unlabeled (null) until a teacher manually
+                // picks Grade 5 or Grade 6 for them in the editor, rather
+                // than every pre-existing story silently becoming "Grade 5".
+                $table->string('grade_level')->nullable();
             }
 
             // Defensive: your app already reads/writes story_type (used to
