@@ -17,6 +17,10 @@ class Story extends Model
         'cover_image',
 
         'audio_path',
+
+        'story_type',
+
+        'grade_level',
     ];
     protected $casts = [
     'audio_scripts' => 'array'
