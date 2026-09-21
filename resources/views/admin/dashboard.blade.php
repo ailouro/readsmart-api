@@ -181,7 +181,7 @@
                                         <select name="teacher_id">
                                             <option value="">— Unassigned —</option>
                                             @foreach ($approvedTeachers as $t)
-                                                <option value="{{ $t->id }}" {{ (string) $s->teacher_id === (string) $t->id ? 'selected' : '' }}>{{ $t->name }}</option>
+                                                <option value="{{ $t->id }}" {{ (string) $s->teacher_id === (string) $t->id ? 'selected' : '' }}>{{ $t->name }}{{ $t->grade_level ? ' — ' . $t->grade_level : '' }}</option>
                                             @endforeach
                                         </select>
                                         <button type="submit" class="btn btn-sm">Save</button>
@@ -282,17 +282,26 @@
             <div class="panel">
                 <h2>Teacher accounts</h2>
                 <p class="hint">
-                    Teachers register themselves through the app. Approve an account here before they can sign in.
+                    Teachers register themselves through the app. Choose the grade level a teacher will handle,
+                    then approve the account so they can sign in. You can change the grade level of an approved teacher later with "Save grade".
                 </p>
                 <table>
                     <thead>
-                        <tr><th>Name</th><th>Email</th><th>Registered</th><th>Status</th><th>Action</th></tr>
+                        <tr><th>Name</th><th>Email</th><th>Grade level</th><th>Registered</th><th>Status</th><th>Action</th></tr>
                     </thead>
                     <tbody>
                         @forelse ($teachers as $t)
                             <tr>
                                 <td>{{ $t->name }}</td>
                                 <td>{{ $t->email }}</td>
+                                <td>
+                                    <select name="grade_level" form="approve-teacher-{{ $t->id }}" required
+                                            style="padding: 5px 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px;">
+                                        <option value="" disabled {{ $t->grade_level ? '' : 'selected' }}>Select grade…</option>
+                                        <option value="Grade 5" {{ $t->grade_level === 'Grade 5' ? 'selected' : '' }}>Grade 5</option>
+                                        <option value="Grade 6" {{ $t->grade_level === 'Grade 6' ? 'selected' : '' }}>Grade 6</option>
+                                    </select>
+                                </td>
                                 <td>{{ optional($t->created_at)->format('Y-m-d') }}</td>
                                 <td>
                                     @if ($t->email_verified_at)
@@ -302,21 +311,27 @@
                                     @endif
                                 </td>
                                 <td>
-                                    @if ($t->email_verified_at)
-                                        <form method="POST" action="{{ route('admin.teachers.revoke', $t->id) }}">
+                                    {{-- The grade-level <select> in the previous column belongs to this form (via its form="" attribute). --}}
+                                    <div style="display: flex; gap: 6px; align-items: center;">
+                                        <form id="approve-teacher-{{ $t->id }}" method="POST" action="{{ route('admin.teachers.approve', $t->id) }}" style="margin: 0;">
                                             @csrf
-                                            <button type="submit" class="btn btn-sm btn-red">Revoke</button>
+                                            @if ($t->email_verified_at)
+                                                <button type="submit" class="btn btn-sm btn-teal">Save grade</button>
+                                            @else
+                                                <button type="submit" class="btn btn-sm">Approve</button>
+                                            @endif
                                         </form>
-                                    @else
-                                        <form method="POST" action="{{ route('admin.teachers.approve', $t->id) }}">
-                                            @csrf
-                                            <button type="submit" class="btn btn-sm">Approve</button>
-                                        </form>
-                                    @endif
+                                        @if ($t->email_verified_at)
+                                            <form method="POST" action="{{ route('admin.teachers.revoke', $t->id) }}" style="margin: 0;">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-red">Revoke</button>
+                                            </form>
+                                        @endif
+                                    </div>
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="empty">No teacher accounts yet.</td></tr>
+                            <tr><td colspan="6" class="empty">No teacher accounts yet.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -329,7 +344,7 @@
         // populate the "Assign to Teacher" dropdown in the bulk-create
         // grid. Kept as plain data (id + name) — no PHP round-trip needed
         // per row.
-        const APPROVED_TEACHERS = @json($approvedTeachers->map(fn($t) => ['id' => $t->id, 'name' => $t->name])->values());
+        const APPROVED_TEACHERS = @json($approvedTeachers->map(fn($t) => ['id' => $t->id, 'name' => $t->name . ($t->grade_level ? ' — ' . $t->grade_level : '')])->values());
 
         // ---------------------------------------------------------------
         // Editable spreadsheet-style grid for bulk student/parent create.
