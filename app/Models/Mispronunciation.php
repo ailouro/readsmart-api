@@ -17,7 +17,8 @@ class Mispronunciation extends Model
         'slide_index',
         'word',
         'total_attempts',
-        'audio_url', // Cloudinary link to the child's struggle-word recording
+        'audio_url',
+        'miscue_type'
     ];
 
     public function student()
