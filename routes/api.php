@@ -58,6 +58,7 @@ Route::post('/email/resend', [AuthController::class, 'resendVerification']);
 Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])->name('verification.verify');
 Route::post('/request-student-account', [AuthController::class, 'requestStudentAccount']);
 Route::post('/users/{id}/avatar', [AuthController::class, 'uploadAvatar']);
+Route::post('/user/change-password', [AuthController::class, 'changePassword']);
 Route::get('/teacher/{teacherId}/alerts', [App\Http\Controllers\AlertController::class, 'getFrustrationAlerts']);
 Route::get('/teachers/{id}/alerts', [AlertController::class, 'getFrustrationAlerts']);
 Route::post('/parents/enroll', [ParentController::class, 'enroll']);
