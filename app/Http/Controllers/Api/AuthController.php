@@ -253,4 +253,49 @@ class AuthController extends Controller
         'student' => $student
     ]);
 }
+
+    // ============================================================================
+    // 🔑 CHANGE PASSWORD (Parent / Teacher / Student "Change Password" dialog)
+    //
+    // NOTE: I don't have ChangePasswordDialog's source, so the exact field
+    // names it POSTs are unconfirmed. This tolerates a few likely variants
+    // the same way register() already merges 'login' -> 'email' above — but
+    // if it still 422s, check the request payload in DevTools and the field
+    // names can be added to the merge list below.
+    // ============================================================================
+    public function changePassword(Request $request)
+    {
+        if ($request->has('userId') && !$request->has('user_id')) {
+            $request->merge(['user_id' => $request->input('userId')]);
+        }
+        if ($request->has('old_password') && !$request->has('current_password')) {
+            $request->merge(['current_password' => $request->input('old_password')]);
+        }
+        if ($request->has('password') && !$request->has('new_password')) {
+            $request->merge(['new_password' => $request->input('password')]);
+        }
+
+        $request->validate([
+            'user_id' => 'required|integer|exists:users,id',
+            'current_password' => 'required|string',
+            'new_password' => 'required|string|min:6',
+        ]);
+
+        $user = User::find($request->input('user_id'));
+
+        if (!Hash::check($request->input('current_password'), $user->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Current password is incorrect.',
+            ], 422);
+        }
+
+        $user->password = Hash::make($request->input('new_password'));
+        $user->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Password updated successfully!',
+        ]);
+    }
 }
