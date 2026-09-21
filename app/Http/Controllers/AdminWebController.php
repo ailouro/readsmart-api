@@ -411,13 +411,32 @@ class AdminWebController extends Controller
     // TEACHERS — approve / revoke (teachers still self-register)
     // -----------------------------------------------------------------
 
-    public function approveTeacher($id)
+    // Approves a teacher AND assigns the grade level they will handle.
+    // Also used on already-approved teachers to change their grade level
+    // (their original approval date is kept).
+    public function approveTeacher(Request $request, $id)
     {
+        $data = $request->validate([
+            'grade_level' => 'required|in:Grade 5,Grade 6',
+        ], [
+            'grade_level.required' => 'Please choose a grade level before approving the teacher.',
+            'grade_level.in'       => 'Grade level must be Grade 5 or Grade 6.',
+        ]);
+
         $teacher = User::where('role', 'teacher')->findOrFail($id);
-        $teacher->email_verified_at = now();
+        $wasApproved = $teacher->email_verified_at !== null;
+
+        if (!$wasApproved) {
+            $teacher->email_verified_at = now();
+        }
+        // Direct assignment (not mass-assignment) so this works even if
+        // grade_level is not in User's $fillable array.
+        $teacher->grade_level = $data['grade_level'];
         $teacher->save();
 
-        return back()->with('success', "{$teacher->name} can now log in.");
+        return back()->with('success', $wasApproved
+            ? "{$teacher->name}'s grade level is now {$data['grade_level']}."
+            : "{$teacher->name} can now log in and is assigned to {$data['grade_level']}.");
     }
 
     public function revokeTeacher($id)
