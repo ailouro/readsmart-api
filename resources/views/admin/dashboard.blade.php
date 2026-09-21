@@ -246,7 +246,7 @@
                 <h2>Existing parents</h2>
                 <table>
                     <thead>
-                        <tr><th>Name</th><th>Email</th><th>Children</th></tr>
+                        <tr><th>Name</th><th>Email</th><th>Children</th><th>Reset password</th></tr>
                     </thead>
                     <tbody>
                         @forelse ($parents as $p)
@@ -261,9 +261,16 @@
                                         {{ $kids->pluck('name')->filter()->implode(', ') }}
                                     @endif
                                 </td>
+                                <td>
+                                    <form method="POST" action="{{ route('admin.users.reset-password', $p->id) }}"
+                                          onsubmit="return confirm('Reset password for {{ $p->name }}? The old password will stop working immediately.');" style="margin:0;">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-teal">Reset password</button>
+                                    </form>
+                                </td>
                             </tr>
                         @empty
-                            <tr><td colspan="3" class="empty">No parent accounts yet.</td></tr>
+                            <tr><td colspan="4" class="empty">No parent accounts yet.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
