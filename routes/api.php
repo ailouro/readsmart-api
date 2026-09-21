@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\ClassEnrollmentController;
 use App\Http\Controllers\Api\ClassController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\SelfCorrectionController;
+use App\Http\Controllers\MiscueController;
 
 
 Route::post('/classes', [ClassController::class, 'store']);
@@ -65,6 +66,8 @@ Route::post('/parents/enroll', [ParentController::class, 'enroll']);
 Route::get('/parents/{parentId}/dashboard', [ParentController::class, 'dashboard']);
 Route::post('/student-self-corrections', [SelfCorrectionController::class, 'storeSelfCorrections']);
 Route::get('/teachers/{id}/self-corrections', [SelfCorrectionController::class, 'teacherSelfCorrections']);
+Route::post('/student-mispronunciations', [MiscueController::class, 'storeMispronunciation']);
+Route::post('/student-self-corrections', [MiscueController::class, 'storeSelfCorrection']);
 Route::post('/pages/{page}/multi-script-audio', [StoryController::class, 'generateMultiScriptAudio']);
 Route::get('/classes/{id}/available-students', [App\Http\Controllers\Api\ClassController::class, 'getAvailableStudents']);
 Route::post('/classes/{id}/bulk-add-students', [App\Http\Controllers\Api\ClassController::class, 'bulkAddStudents']);
