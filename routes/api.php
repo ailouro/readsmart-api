@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\ClassController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\SelfCorrectionController;
 use App\Http\Controllers\MiscueController;
+use App\Http\Controllers\Api\AssessmentController;
 
 
 Route::post('/classes', [ClassController::class, 'store']);
@@ -68,6 +69,10 @@ Route::post('/student-self-corrections', [SelfCorrectionController::class, 'stor
 Route::get('/teachers/{id}/self-corrections', [SelfCorrectionController::class, 'teacherSelfCorrections']);
 Route::post('/student-mispronunciations', [MiscueController::class, 'storeMispronunciation']);
 Route::post('/student-self-corrections', [MiscueController::class, 'storeSelfCorrection']);
+Route::post('/classes/{id}/assessments', [AssessmentController::class, 'store']);
+Route::get('/classes/{id}/assessments', [AssessmentController::class, 'index']);
+Route::get('/assessment-passage', [AssessmentController::class, 'assessmentPassage']);
+Route::post('/student/assessment-outcome', [AssessmentController::class, 'outcome']);
 Route::post('/pages/{page}/multi-script-audio', [StoryController::class, 'generateMultiScriptAudio']);
 Route::get('/classes/{id}/available-students', [App\Http\Controllers\Api\ClassController::class, 'getAvailableStudents']);
 Route::post('/classes/{id}/bulk-add-students', [App\Http\Controllers\Api\ClassController::class, 'bulkAddStudents']);
