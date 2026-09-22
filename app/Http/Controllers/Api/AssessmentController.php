@@ -95,39 +95,43 @@ class AssessmentController extends Controller
     }
 
 
-    /**
-     * Class-wide random assignment from the Stories tab. Every student in
-     * $request->student_ids gets a randomly picked Set (A-D, independently
-     * per student — an uneven split is expected, this is a real shuffle,
-     * not a balanced round-robin).
-     *
-     * Deliberately skips GST: this path is for a fixed research sample
-     * where every student in the class starts at the class's own grade
-     * level, not Stage 2's per-student GST-computed starting grade. That's
-     * a product decision for this flow only — the per-student
-     * store() endpoint above is untouched and still requires gst_raw for
-     * a pre-test exactly as before.
-     */
     public function bulkStore(Request $request, $classId)
     {
         $validated = $request->validate([
             'test_type'      => 'required|string|in:pre_test,post_test',
             'student_ids'    => 'required|array|min:1',
             'student_ids.*'  => 'integer',
-            'student_grade'  => 'required|integer|min:2|max:7',
+            // I-limit sa Grade 5 at 6 kung ito lang ang tunay na scope
+            'student_grade'  => 'required|integer|in:5,6',
         ]);
 
-        $sets = ['A', 'B', 'C', 'D'];
+        $gradeLabel = 'Grade ' . $validated['student_grade'];
+
+        // 1. Kumuha MUNA ng mga totoong available na set sa database para sa Grade level na ito
+        $availableSets = Story::where('story_type', $validated['test_type'])
+            ->where('grade_level', $gradeLabel)
+            ->pluck('set_letter')
+            ->map(function ($set) {
+                return strtoupper(trim(str_ireplace('Set', '', $set)));
+            })
+            ->unique()
+            ->values()
+            ->toArray();
+
+        // 2. Kung walang nahanap na story para sa grade na ito, mag-return ng malinaw na error
+        if (empty($availableSets)) {
+            return response()->json([
+                'message' => "Walang available na kwento sa database para sa {$gradeLabel}.",
+            ], 422);
+        }
+
         $assignments = [];
 
-        \DB::transaction(function () use ($validated, $classId, $sets, &$assignments) {
+        \DB::transaction(function () use ($validated, $classId, $availableSets, &$assignments) {
             foreach ($validated['student_ids'] as $studentId) {
-                $letter = $sets[array_rand($sets)];
+                // 3. Pumili LANG ng random set mula sa mga available/uploaded sets sa DB
+                $letter = $availableSets[array_rand($availableSets)];
 
-                // Same match key as store(): one row per
-                // (class_id, student_id, test_type), so re-running this on
-                // a class that already has assignments reshuffles them
-                // rather than piling up duplicates.
                 $assignments[] = Assessment::updateOrCreate(
                     [
                         'class_id'   => $classId,
@@ -135,11 +139,11 @@ class AssessmentController extends Controller
                         'test_type'  => $validated['test_type'],
                     ],
                     [
-                        'set_letter'    => $letter,
-                        'gst_raw'       => null,
-                        'student_grade' => $validated['student_grade'],
-                        'start_grade'   => $validated['student_grade'],
-                        'status'        => 'assigned',
+                        'set_letter'          => $letter,
+                        'gst_raw'             => null,
+                        'student_grade'       => $validated['student_grade'],
+                        'start_grade'         => $validated['student_grade'],
+                        'status'              => 'assigned',
                         'independent_grade'   => null,
                         'instructional_grade' => null,
                         'frustration_grade'   => null,
@@ -157,7 +161,6 @@ class AssessmentController extends Controller
             'assessments' => $assignments,
         ], 201);
     }
-
 
     public function assessmentPassage(Request $request)
     {
