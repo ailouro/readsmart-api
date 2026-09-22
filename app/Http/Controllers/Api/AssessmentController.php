@@ -9,11 +9,7 @@ use Illuminate\Http\Request;
 
 class AssessmentController extends Controller
 {
-    /**
-     * POST /api/classes/{classId}/assessments
-     * Teacher assigns a pre-test to one student. Matches the payload sent
-     * by the "Assign" dialog in class_dashboard_screen.dart.
-     */
+   
     public function store(Request $request, $classId)
     {
         $validated = $request->validate([
@@ -24,8 +20,7 @@ class AssessmentController extends Controller
             'student_grade'  => 'required|integer',
         ]);
 
-        // Normalize to a bare letter ('A'-'D') regardless of what the
-        // client sent, so lookups against this row are consistent.
+        
         $setLetter = strtoupper(trim(str_ireplace('Set', '', $validated['set_letter'])));
 
         $assessment = Assessment::updateOrCreate(
@@ -49,13 +44,7 @@ class AssessmentController extends Controller
         ], 201);
     }
 
-    /**
-     * GET /api/classes/{classId}/assessments?student_id=X
-     * Lists this student's assessment records in this class. Returns the
-     * assessment's own id/columns directly (test_type, set_letter, gst_raw,
-     * start_grade, independent_grade, ...) — this is what
-     * class_dashboard_screen.dart reads into each `a` map.
-     */
+
     public function index(Request $request, $classId)
     {
         $studentId = $request->query('student_id');
@@ -70,12 +59,7 @@ class AssessmentController extends Controller
         ]);
     }
 
-    /**
-     * GET /api/assessment-passage?test_type=&set_letter=&grade=
-     * Finds one Story matching the requested grade/set/type for
-     * AssessmentFlowScreen._fetchPassage(). Accepts set_letter as either
-     * a bare letter ('A') or the stored form ('Set A').
-     */
+
     public function assessmentPassage(Request $request)
     {
         $validated = $request->validate([
@@ -105,15 +89,7 @@ class AssessmentController extends Controller
         return response()->json(['story' => $story]);
     }
 
-    /**
-     * POST /api/student/assessment-outcome
-     * Saves the final Independent/Instructional/Frustration result once
-     * PhilIriSession completes. Also auto-creates the matching post-test
-     * assessment row after a pre-test finishes, seeded at the
-     * instructional grade found — VERIFY this matches how your
-     * PhilIriRules/PhilIriSession actually defines the post-test starting
-     * point; adjust the fallback chain below if not.
-     */
+
     public function outcome(Request $request)
     {
         $validated = $request->validate([
@@ -152,12 +128,6 @@ class AssessmentController extends Controller
             'status'              => 'completed',
         ]);
 
-        // Auto-create the post-test row once the pre-test is done, so it
-        // shows up in the class dashboard ready to take. phil_iri_session.dart
-        // documents "reusing the pre-test start grade" as the intended
-        // default for the post-test's starting point — NOT the discovered
-        // instructional/independent grade. Change this if your team decides
-        // on a different rule later.
         if ($validated['test_type'] === 'pre_test') {
             Assessment::updateOrCreate(
                 [

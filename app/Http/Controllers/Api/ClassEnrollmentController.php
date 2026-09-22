@@ -312,37 +312,10 @@ public function getTeacherDashboardSummary($teacher_id)
 // Assign an existing library story to a class
 public function assignStoryToClass(Request $request, $classId)
 {
-    $request->validate([
-        'story_id' => 'required',
-        'test_type' => 'nullable|in:pre_test,post_test',
-    ]);
-
-    $class = SchoolClass::findOrFail($classId);
-    $storyIds = is_array($request->story_id) ? $request->story_id : [$request->story_id];
-    $testType = $request->test_type ?? 'post_test';
-
-    // A story can be assigned to the SAME class twice — once as a
-    // pre_test and once as a post_test. syncWithoutDetaching() would
-    // instead UPDATE the single existing (class_id, story_id) pivot row,
-    // silently overwriting a pre_test assignment with post_test (or vice
-    // versa) instead of creating a second one. So attach() each story
-    // individually, guarded by an existence check on the exact
-    // (story_id, test_type) pair to avoid duplicate rows on repeat taps.
-    foreach ($storyIds as $storyId) {
-        $alreadyAssigned = $class->stories()
-            ->where('stories.id', $storyId)
-            ->wherePivot('test_type', $testType)
-            ->exists();
-
-        if (!$alreadyAssigned) {
-            $class->stories()->attach($storyId, ['test_type' => $testType]);
-        }
-    }
-
     return response()->json([
-        'success' => true,
-        'message' => 'Story assigned to class successfully!'
-    ], 200);
+        'status' => 'error',
+        'message' => 'Assigning stories directly to classes is deprecated. Please assign reading tests via the Students tab.'
+    ], 410);
 }
 
 // Unassign a story from a class
