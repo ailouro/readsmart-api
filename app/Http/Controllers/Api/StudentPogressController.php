@@ -20,21 +20,16 @@ class StudentProgressController extends Controller
     public function getCompletedStories($studentId)
     {
         try {
-
+            // Gamitin ang tamang column names: user_id at is_reading_completed
             $stories = Story::join('student_progress', 'stories.id', '=', 'student_progress.story_id')
-    ->where('student_progress.student_id', $studentId)
-    ->where('student_progress.is_completed', true)
-    ->select('stories.*', 'student_progress.score', 'student_progress.updated_at as date_completed')
-    ->get();
-            // Makuha ang mga unique story_ids mula sa progress table kung saan completed na ang pagbasa
-            $completedStoryIds = StudentProgress::where('student_id', $studentId)
-                ->where('is_completed', true) // I-adjust batay sa column name mo (e.g., status == 'completed')
-                ->pluck('story_id')
-                ->unique();
-
-            // Kunin ang kumpletong detalye ng mga kuwentong ito
-            $stories = Story::whereIn('id', $completedStoryIds)
-            
+                ->where('student_progress.user_id', $studentId)
+                ->where('student_progress.is_reading_completed', true)
+                ->select(
+                    'stories.*', 
+                    'student_progress.quiz_score', 
+                    'student_progress.reading_level', 
+                    'student_progress.updated_at as date_completed'
+                )
                 ->get();
 
             return response()->json([
