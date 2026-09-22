@@ -9,7 +9,6 @@ use Illuminate\Http\Request;
 
 class AssessmentController extends Controller
 {
-   
     public function store(Request $request, $classId)
     {
         $validated = $request->validate([
@@ -17,14 +16,10 @@ class AssessmentController extends Controller
             'test_type'      => 'required|string|in:pre_test,post_test',
             'set_letter'     => 'required|string',
             'gst_raw'        => 'nullable|integer|min:0|max:20',
-            'student_grade'  => 'required|integer|min:2|max:7',
-            'start_grade'    => 'nullable|integer|min:2|max:7',
+            'student_grade'  => 'required|integer|in:5,6',
+            'start_grade'    => 'nullable|integer|in:5,6',
         ]);
 
-        // gst_raw drives the pre-test's starting grade (Stage 2, Step 1);
-        // start_grade is where a post-test begins instead, since there's
-        // no GST for a post-test. Each is required for its own test_type
-        // so a half-filled assignment never gets silently saved.
         if ($validated['test_type'] === 'pre_test' && $request->input('gst_raw') === null) {
             return response()->json([
                 'message' => 'gst_raw is required to assign a pre-test.',
@@ -38,14 +33,6 @@ class AssessmentController extends Controller
 
         $setLetter = strtoupper(trim(str_ireplace('Set', '', $validated['set_letter'])));
 
-        // set_letter is intentionally NOT part of the match key below.
-        // Every part of the app (progress counts, the Pre-Test-done gate,
-        // _assessmentFor on the frontend) assumes one row per
-        // (class, student, test_type). Matching on set_letter too used to
-        // mean a reassignment with a different set created a second row
-        // instead of replacing the first, leaving an orphaned, uncompletable
-        // row behind that silently inflated totals and could block
-        // Post-Test from ever unlocking.
         $assessment = Assessment::updateOrCreate(
             [
                 'class_id'   => $classId,
@@ -53,16 +40,11 @@ class AssessmentController extends Controller
                 'test_type'  => $validated['test_type'],
             ],
             [
-                'set_letter'    => $setLetter,
-                'gst_raw'       => $validated['gst_raw'] ?? null,
-                'student_grade' => $validated['student_grade'],
-                'start_grade'   => $validated['start_grade'] ?? null,
-                'status'        => 'assigned',
-                // A (re)assignment is always a fresh attempt. Without this,
-                // reassigning a class/student/test_type/set combo that was
-                // already completed before would leave the old outcome
-                // (independent/instructional/frustration grades, session
-                // data) sitting on a row now marked 'assigned' again.
+                'set_letter'          => $setLetter,
+                'gst_raw'             => $validated['gst_raw'] ?? null,
+                'student_grade'       => $validated['student_grade'],
+                'start_grade'         => $validated['start_grade'] ?? null,
+                'status'              => 'assigned',
                 'independent_grade'   => null,
                 'instructional_grade' => null,
                 'frustration_grade'   => null,
@@ -79,7 +61,6 @@ class AssessmentController extends Controller
         ], 201);
     }
 
-
     public function index(Request $request, $classId)
     {
         $studentId = $request->query('student_id');
@@ -94,20 +75,17 @@ class AssessmentController extends Controller
         ]);
     }
 
-
     public function bulkStore(Request $request, $classId)
     {
         $validated = $request->validate([
             'test_type'      => 'required|string|in:pre_test,post_test',
             'student_ids'    => 'required|array|min:1',
             'student_ids.*'  => 'integer',
-            // I-limit sa Grade 5 at 6 kung ito lang ang tunay na scope
             'student_grade'  => 'required|integer|in:5,6',
         ]);
 
         $gradeLabel = 'Grade ' . $validated['student_grade'];
 
-        // 1. Kumuha MUNA ng mga totoong available na set sa database para sa Grade level na ito
         $availableSets = Story::where('story_type', $validated['test_type'])
             ->where('grade_level', $gradeLabel)
             ->pluck('set_letter')
@@ -118,7 +96,6 @@ class AssessmentController extends Controller
             ->values()
             ->toArray();
 
-        // 2. Kung walang nahanap na story para sa grade na ito, mag-return ng malinaw na error
         if (empty($availableSets)) {
             return response()->json([
                 'message' => "Walang available na kwento sa database para sa {$gradeLabel}.",
@@ -129,7 +106,6 @@ class AssessmentController extends Controller
 
         \DB::transaction(function () use ($validated, $classId, $availableSets, &$assignments) {
             foreach ($validated['student_ids'] as $studentId) {
-                // 3. Pumili LANG ng random set mula sa mga available/uploaded sets sa DB
                 $letter = $availableSets[array_rand($availableSets)];
 
                 $assignments[] = Assessment::updateOrCreate(
@@ -167,7 +143,7 @@ class AssessmentController extends Controller
         $validated = $request->validate([
             'test_type'  => 'required|string|in:pre_test,post_test',
             'set_letter' => 'required|string',
-            'grade'      => 'required|integer|min:2|max:7',
+            'grade'      => 'required|integer|in:5,6',
         ]);
 
         $letter = strtoupper(trim(str_ireplace('Set', '', $validated['set_letter'])));
@@ -190,7 +166,6 @@ class AssessmentController extends Controller
 
         return response()->json(['story' => $story]);
     }
-
 
     public function outcome(Request $request)
     {
@@ -220,7 +195,7 @@ class AssessmentController extends Controller
         }
 
         $assessment->update([
-            'start_grade'         => $validated['start_grade'],
+            'start_grade'         => max(5, min(6, $validated['start_grade'])),
             'independent_grade'   => $validated['independent_grade'] ?? null,
             'instructional_grade' => $validated['instructional_grade'] ?? null,
             'frustration_grade'   => $validated['frustration_grade'] ?? null,
@@ -231,10 +206,9 @@ class AssessmentController extends Controller
         ]);
 
         if ($validated['test_type'] === 'pre_test') {
-            // set_letter kept out of the match key here too, for the same
-            // reason as store(): this must land on the student's single
-            // post_test row, not spawn a second one alongside any post_test
-            // a teacher may have already assigned by hand.
+            // Auto-assign post_test ensuring start_grade is clamped to 5 or 6
+            $postStartGrade = max(5, min(6, $validated['start_grade'] ?? $assessment->student_grade));
+
             Assessment::updateOrCreate(
                 [
                     'class_id'   => $assessment->class_id,
@@ -243,13 +217,9 @@ class AssessmentController extends Controller
                 ],
                 [
                     'set_letter'          => $letter,
-                    'student_grade'       => $assessment->student_grade,
-                    'start_grade'         => $validated['start_grade'],
+                    'student_grade'       => max(5, min(6, $assessment->student_grade)),
+                    'start_grade'         => $postStartGrade,
                     'status'              => 'assigned',
-                    // Same reasoning as store(): if a post-test already
-                    // sat on this exact slot from an earlier cycle, don't
-                    // let its old outcome linger under the fresh 'assigned'
-                    // status this just set.
                     'independent_grade'   => null,
                     'instructional_grade' => null,
                     'frustration_grade'   => null,
