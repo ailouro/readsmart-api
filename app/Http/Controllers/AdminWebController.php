@@ -283,14 +283,13 @@ class AdminWebController extends Controller
     public function resetPassword($id)
 {
     $user = User::findOrFail($id);
-    
-    // Default password set to 'readsmart123'
+
+    // Gawing fixed na 'readsmart123' sa halip na $this->generatePassword()
     $newPassword = 'readsmart123';
 
     $user->password = Hash::make($newPassword);
     $user->save();
 
-    // Redirect back with a success message
     return back()->with('success', "Password for {$user->name} has been reset to '{$newPassword}'.");
 }
 
