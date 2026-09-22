@@ -17,23 +17,58 @@ class AssessmentController extends Controller
             'test_type'      => 'required|string|in:pre_test,post_test',
             'set_letter'     => 'required|string',
             'gst_raw'        => 'nullable|integer|min:0|max:20',
-            'student_grade'  => 'required|integer',
+            'student_grade'  => 'required|integer|min:2|max:7',
+            'start_grade'    => 'nullable|integer|min:2|max:7',
         ]);
 
-        
+        // gst_raw drives the pre-test's starting grade (Stage 2, Step 1);
+        // start_grade is where a post-test begins instead, since there's
+        // no GST for a post-test. Each is required for its own test_type
+        // so a half-filled assignment never gets silently saved.
+        if ($validated['test_type'] === 'pre_test' && $request->input('gst_raw') === null) {
+            return response()->json([
+                'message' => 'gst_raw is required to assign a pre-test.',
+            ], 422);
+        }
+        if ($validated['test_type'] === 'post_test' && $request->input('start_grade') === null) {
+            return response()->json([
+                'message' => 'start_grade is required to assign a post-test.',
+            ], 422);
+        }
+
         $setLetter = strtoupper(trim(str_ireplace('Set', '', $validated['set_letter'])));
 
+        // set_letter is intentionally NOT part of the match key below.
+        // Every part of the app (progress counts, the Pre-Test-done gate,
+        // _assessmentFor on the frontend) assumes one row per
+        // (class, student, test_type). Matching on set_letter too used to
+        // mean a reassignment with a different set created a second row
+        // instead of replacing the first, leaving an orphaned, uncompletable
+        // row behind that silently inflated totals and could block
+        // Post-Test from ever unlocking.
         $assessment = Assessment::updateOrCreate(
             [
                 'class_id'   => $classId,
                 'student_id' => $validated['student_id'],
                 'test_type'  => $validated['test_type'],
-                'set_letter' => $setLetter,
             ],
             [
+                'set_letter'    => $setLetter,
                 'gst_raw'       => $validated['gst_raw'] ?? null,
                 'student_grade' => $validated['student_grade'],
+                'start_grade'   => $validated['start_grade'] ?? null,
                 'status'        => 'assigned',
+                // A (re)assignment is always a fresh attempt. Without this,
+                // reassigning a class/student/test_type/set combo that was
+                // already completed before would leave the old outcome
+                // (independent/instructional/frustration grades, session
+                // data) sitting on a row now marked 'assigned' again.
+                'independent_grade'   => null,
+                'instructional_grade' => null,
+                'frustration_grade'   => null,
+                'below_range'         => false,
+                'above_range'         => false,
+                'session_data'        => null,
             ]
         );
 
@@ -129,17 +164,31 @@ class AssessmentController extends Controller
         ]);
 
         if ($validated['test_type'] === 'pre_test') {
+            // set_letter kept out of the match key here too, for the same
+            // reason as store(): this must land on the student's single
+            // post_test row, not spawn a second one alongside any post_test
+            // a teacher may have already assigned by hand.
             Assessment::updateOrCreate(
                 [
                     'class_id'   => $assessment->class_id,
                     'student_id' => $assessment->student_id,
                     'test_type'  => 'post_test',
-                    'set_letter' => $letter,
                 ],
                 [
-                    'student_grade' => $assessment->student_grade,
-                    'start_grade'   => $validated['start_grade'],
-                    'status'        => 'assigned',
+                    'set_letter'          => $letter,
+                    'student_grade'       => $assessment->student_grade,
+                    'start_grade'         => $validated['start_grade'],
+                    'status'              => 'assigned',
+                    // Same reasoning as store(): if a post-test already
+                    // sat on this exact slot from an earlier cycle, don't
+                    // let its old outcome linger under the fresh 'assigned'
+                    // status this just set.
+                    'independent_grade'   => null,
+                    'instructional_grade' => null,
+                    'frustration_grade'   => null,
+                    'below_range'         => false,
+                    'above_range'         => false,
+                    'session_data'        => null,
                 ]
             );
         }
