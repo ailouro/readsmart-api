@@ -281,18 +281,18 @@ class AdminWebController extends Controller
      * bulk create. The old password stops working immediately.
      */
     public function resetPassword($id)
-    {
-        $user = User::findOrFail($id);
-        
-        // Generate a new random password using your existing helper
-        $newPassword = $this->generatePassword();
+{
+    $user = User::findOrFail($id);
+    
+    // Default password set to 'readsmart123'
+    $newPassword = 'readsmart123';
 
-        $user->password = Hash::make($newPassword);
-        $user->save();
+    $user->password = Hash::make($newPassword);
+    $user->save();
 
-        // Redirect back with a success message showing the new password
-        return back()->with('success', "Password for {$user->name} has been reset. The new password is: {$newPassword}");
-    }
+    // Redirect back with a success message
+    return back()->with('success', "Password for {$user->name} has been reset to '{$newPassword}'.");
+}
 
    
     public function bulkCreateParents(Request $request)
