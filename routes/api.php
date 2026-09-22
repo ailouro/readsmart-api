@@ -55,7 +55,7 @@ Route::post('/stories/{story_id}/slides/{slide_index}/generate-tts', [StoryAudio
 Route::get('/teachers/{teacher_id}/mispronunciations', [ClassEnrollmentController::class, 'getTeacherStudentLogs']);
 Route::get('/teachers/{teacher_id}/classes', [ClassEnrollmentController::class, 'getTeacherClasses']);
 Route::get('/teachers/{teacher_id}/dashboard-summary', [ClassEnrollmentController::class, 'getTeacherDashboardSummary']);
-Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
+Route::post('classes/{classId}/assessments/bulk', [AssessmentController::class, 'bulkStore']);
 Route::post('/email/resend', [AuthController::class, 'resendVerification']);
 Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])->name('verification.verify');
 Route::post('/request-student-account', [AuthController::class, 'requestStudentAccount']);
