@@ -81,7 +81,7 @@ class AssessmentController extends Controller
         $validated = $request->validate([
             'test_type'  => 'required|string|in:pre_test,post_test',
             'set_letter' => 'required|string',
-            'grade'      => 'required|integer|min:1|max:7',
+            'grade'      => 'required|integer|min:2|max:7',
         ]);
 
         $letter = strtoupper(trim(str_ireplace('Set', '', $validated['set_letter'])));
@@ -153,12 +153,12 @@ class AssessmentController extends Controller
         ]);
 
         // Auto-create the post-test row once the pre-test is done, so it
-        // shows up in the class dashboard ready to take.
+        // shows up in the class dashboard ready to take. phil_iri_session.dart
+        // documents "reusing the pre-test start grade" as the intended
+        // default for the post-test's starting point — NOT the discovered
+        // instructional/independent grade. Change this if your team decides
+        // on a different rule later.
         if ($validated['test_type'] === 'pre_test') {
-            $postTestStart = $validated['instructional_grade']
-                ?? $validated['independent_grade']
-                ?? $validated['start_grade'];
-
             Assessment::updateOrCreate(
                 [
                     'class_id'   => $assessment->class_id,
@@ -168,7 +168,7 @@ class AssessmentController extends Controller
                 ],
                 [
                     'student_grade' => $assessment->student_grade,
-                    'start_grade'   => $postTestStart,
+                    'start_grade'   => $validated['start_grade'],
                     'status'        => 'assigned',
                 ]
             );
