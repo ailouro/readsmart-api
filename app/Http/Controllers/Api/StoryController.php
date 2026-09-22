@@ -412,6 +412,7 @@ class StoryController extends Controller
         $validated = $request->validate([
             'story_type'  => 'nullable|string|in:pre_test,post_test',
             'grade_level' => 'nullable|string|in:Grade 5,Grade 6',
+            'set_letter'  => 'nullable|string|in:Set A,Set B,Set C,Set D',
         ]);
 
         if (array_key_exists('story_type', $validated) && $validated['story_type'] !== null) {
@@ -419,6 +420,9 @@ class StoryController extends Controller
         }
         if (array_key_exists('grade_level', $validated) && $validated['grade_level'] !== null) {
             $story->grade_level = $validated['grade_level'];
+        }
+        if (array_key_exists('set_letter', $validated) && $validated['set_letter'] !== null) {
+            $story->set_letter = $validated['set_letter'];
         }
 
         $story->save();

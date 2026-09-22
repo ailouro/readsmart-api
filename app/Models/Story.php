@@ -21,6 +21,8 @@ class Story extends Model
         'story_type',
 
         'grade_level',
+
+        'set_letter',
     ];
     protected $casts = [
     'audio_scripts' => 'array'
