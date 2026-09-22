@@ -95,6 +95,70 @@ class AssessmentController extends Controller
     }
 
 
+    /**
+     * Class-wide random assignment from the Stories tab. Every student in
+     * $request->student_ids gets a randomly picked Set (A-D, independently
+     * per student — an uneven split is expected, this is a real shuffle,
+     * not a balanced round-robin).
+     *
+     * Deliberately skips GST: this path is for a fixed research sample
+     * where every student in the class starts at the class's own grade
+     * level, not Stage 2's per-student GST-computed starting grade. That's
+     * a product decision for this flow only — the per-student
+     * store() endpoint above is untouched and still requires gst_raw for
+     * a pre-test exactly as before.
+     */
+    public function bulkStore(Request $request, $classId)
+    {
+        $validated = $request->validate([
+            'test_type'      => 'required|string|in:pre_test,post_test',
+            'student_ids'    => 'required|array|min:1',
+            'student_ids.*'  => 'integer',
+            'student_grade'  => 'required|integer|min:2|max:7',
+        ]);
+
+        $sets = ['A', 'B', 'C', 'D'];
+        $assignments = [];
+
+        \DB::transaction(function () use ($validated, $classId, $sets, &$assignments) {
+            foreach ($validated['student_ids'] as $studentId) {
+                $letter = $sets[array_rand($sets)];
+
+                // Same match key as store(): one row per
+                // (class_id, student_id, test_type), so re-running this on
+                // a class that already has assignments reshuffles them
+                // rather than piling up duplicates.
+                $assignments[] = Assessment::updateOrCreate(
+                    [
+                        'class_id'   => $classId,
+                        'student_id' => $studentId,
+                        'test_type'  => $validated['test_type'],
+                    ],
+                    [
+                        'set_letter'    => $letter,
+                        'gst_raw'       => null,
+                        'student_grade' => $validated['student_grade'],
+                        'start_grade'   => $validated['student_grade'],
+                        'status'        => 'assigned',
+                        'independent_grade'   => null,
+                        'instructional_grade' => null,
+                        'frustration_grade'   => null,
+                        'below_range'         => false,
+                        'above_range'         => false,
+                        'session_data'        => null,
+                    ]
+                );
+            }
+        });
+
+        return response()->json([
+            'success'     => true,
+            'message'     => 'Randomly assigned '.count($assignments).' student(s).',
+            'assessments' => $assignments,
+        ], 201);
+    }
+
+
     public function assessmentPassage(Request $request)
     {
         $validated = $request->validate([
