@@ -17,6 +17,42 @@ class StudentProgressController extends Controller
         $this->philIriService = $philIriService;
     }
 
+    public function getCompletedStories($studentId)
+    {
+        try {
+
+            $stories = Story::join('student_progress', 'stories.id', '=', 'student_progress.story_id')
+    ->where('student_progress.student_id', $studentId)
+    ->where('student_progress.is_completed', true)
+    ->select('stories.*', 'student_progress.score', 'student_progress.updated_at as date_completed')
+    ->get();
+            // Makuha ang mga unique story_ids mula sa progress table kung saan completed na ang pagbasa
+            $completedStoryIds = StudentProgress::where('student_id', $studentId)
+                ->where('is_completed', true) // I-adjust batay sa column name mo (e.g., status == 'completed')
+                ->pluck('story_id')
+                ->unique();
+
+            // Kunin ang kumpletong detalye ng mga kuwentong ito
+            $stories = Story::whereIn('id', $completedStoryIds)
+            
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Completed stories retrieved successfully.',
+                'data' => $stories
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch completed stories.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
     public function saveProgress(SaveProgressRequest $request)
     {
         $validated = $request->validated();

@@ -36,5 +36,12 @@ public function user()
 {
     return $this->belongsTo(User::class, 'user_id');
 }
+// Sa Student.php model
+public function completedStories() {
+    return $this->belongsToMany(Story::class, 'student_progress')
+                ->wherePivot('is_completed', true);
+}
+
+
 
 }
