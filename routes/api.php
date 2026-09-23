@@ -14,7 +14,6 @@ use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\SelfCorrectionController;
 use App\Http\Controllers\MiscueController;
 use App\Http\Controllers\Api\AssessmentController;
-use App\Http\Controllers\Api\StudentProgressController;
 
 
 Route::post('/classes', [ClassController::class, 'store']);
@@ -71,7 +70,6 @@ Route::post('/student-self-corrections', [SelfCorrectionController::class, 'stor
 Route::get('/teachers/{id}/self-corrections', [SelfCorrectionController::class, 'teacherSelfCorrections']);
 Route::post('/student-mispronunciations', [MiscueController::class, 'storeMispronunciation']);
 Route::post('/student-self-corrections', [MiscueController::class, 'storeSelfCorrection']);
-Route::get('/student/{studentId}/completed-stories', [StudentProgressController::class, 'getCompletedStories']);
 Route::get('/student/{studentId}/completed-stories', [StoryController::class, 'getCompletedStories']);
 Route::post('/classes/{id}/assessments', [AssessmentController::class, 'store']);
 Route::get('/classes/{id}/assessments', [AssessmentController::class, 'index']);
