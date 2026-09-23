@@ -38,8 +38,18 @@ public function user()
 }
 // Sa Student.php model
 public function completedStories() {
-    return $this->belongsToMany(Story::class, 'student_progress')
-                ->wherePivot('is_reading_completed', true);
+    // student_progress is keyed by the USER id (user_id), not students.id,
+    // so tell Eloquent which pivot column and which parent column to use.
+    // (Default was student_progress.student_id, which doesn't exist.)
+    return $this->belongsToMany(
+            Story::class,
+            'student_progress',
+            'user_id',   // pivot column pointing at this student
+            'story_id',  // pivot column pointing at the story
+            'user_id',   // students.user_id  <->  student_progress.user_id
+            'id'
+        )
+        ->wherePivot('is_reading_completed', true);
 }
 
 

@@ -17,32 +17,28 @@ class StudentProgressController extends Controller
         $this->philIriService = $philIriService;
     }
 
+    /**
+     * "Aking Silid-Aklatan" -- every story this student has finished.
+     *
+     * BUG FIXED: this method used `Story::` but the controller never imported
+     * App\Models\Story, so PHP looked for App\Http\Controllers\Api\Story and
+     * threw a "Class not found" *Error*. `catch (\Exception)` does not catch
+     * Errors, so the app got a 500, and the dashboard silently ignored it and
+     * kept showing an empty library.
+     */
     public function getCompletedStories($studentId)
     {
         try {
-            // Gamitin ang tamang column names: user_id at is_reading_completed
-            $stories = Story::join('student_progress', 'stories.id', '=', 'student_progress.story_id')
-                ->where('student_progress.user_id', $studentId)
-                ->where('student_progress.is_reading_completed', true)
-                ->select(
-                    'stories.*', 
-                    'student_progress.quiz_score', 
-                    'student_progress.reading_level', 
-                    'student_progress.updated_at as date_completed'
-                )
-                ->get();
-
             return response()->json([
                 'success' => true,
                 'message' => 'Completed stories retrieved successfully.',
-                'data' => $stories
+                'data'    => StudentProgress::completedStoriesFor($studentId),
             ], 200);
-
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch completed stories.',
-                'error' => $e->getMessage()
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }

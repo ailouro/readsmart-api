@@ -489,8 +489,21 @@ class StoryController extends Controller
             ->orderBy('created_at', 'asc')
             ->get()
             ->map(function ($p) {
+                // A completed progress row whose story_id doesn't match any
+                // row in `stories` (story deleted/re-uploaded, or a wrong id
+                // was saved) used to show up as a nameless "Unknown" entry.
+                // Log it so the bad story_id is easy to find, and fall back to
+                // a readable label instead of "Unknown".
+                if (!$p->story) {
+                    \Illuminate\Support\Facades\Log::warning(
+                        "student_progress #{$p->id} (user {$p->user_id}) points to missing story_id {$p->story_id}"
+                    );
+                }
+
                 return [
-                    'story_title'           => $p->story->title ?? 'Unknown',
+                    'story_id'              => $p->story_id,
+                    'story_title'           => $p->story->title ?? $this->fallbackStoryTitle($p),
+                    'test_type'             => $p->test_type,
                     'reading_level'         => $p->reading_level ?? 'N/A',
                     'oral_fluency_accuracy' => $p->oral_fluency_accuracy ?? 0,
                     'quiz_score'            => $p->quiz_score ?? 0,
@@ -504,6 +517,16 @@ class StoryController extends Controller
             'success' => true,
             'data'    => $records,
         ]);
+    }
+
+    private function fallbackStoryTitle($progress): string
+    {
+        $labels = [
+            'pre_test'  => 'Pre-Test Reading',
+            'post_test' => 'Post-Test Reading',
+        ];
+
+        return $labels[$progress->test_type] ?? ('Story #' . $progress->story_id);
     }
 
     public function saveReadingProgress(Request $request)
@@ -541,38 +564,26 @@ class StoryController extends Controller
 
     /**
      * 📚 "Aking Silid-Aklatan" (My Library) -- every story this student has
-     * finished at least once, with full story data (not just the score
-     * summary getAllProgress() returns) so the app can hand it straight to
-     * StoryViewerScreen for a re-read. A story finished more than once
-     * (replayed) is returned once, using its most recent attempt's score.
+     * finished at least once, with full story data (pages + quiz included) so
+     * the app can hand it straight to StoryViewerScreen for a re-read. A story
+     * finished more than once is returned once, using its latest attempt.
+     *
+     * The old version used a raw join + select('stories.*'), which never
+     * loaded `pages`, so re-reading opened an empty story.
      */
     public function getCompletedStories($studentId)
     {
         try {
-            $stories = Story::join('student_progress', 'stories.id', '=', 'student_progress.story_id')
-                ->where('student_progress.user_id', $studentId)
-                ->where('student_progress.is_reading_completed', true)
-                ->select(
-                    'stories.*',
-                    'student_progress.quiz_score',
-                    'student_progress.reading_level',
-                    'student_progress.updated_at as date_completed'
-                )
-                ->orderByDesc('student_progress.updated_at')
-                ->get()
-                ->unique('id')
-                ->values();
-
             return response()->json([
                 'success' => true,
                 'message' => 'Completed stories retrieved successfully.',
-                'data' => $stories
+                'data'    => StudentProgress::completedStoriesFor($studentId),
             ], 200);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch completed stories.',
-                'error' => $e->getMessage()
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }
