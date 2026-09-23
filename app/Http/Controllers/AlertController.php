@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\Student;
+use App\Models\User;
 use App\Models\StudentProgress;
 use Illuminate\Support\Facades\DB;
 
@@ -14,11 +14,14 @@ class AlertController extends Controller
         try {
             $alerts = [];
 
-            // Use the SAME relationship style as AnalyticsController's dashboardSummary,
-            // instead of rebuilding the teacher -> class -> student chain by hand with
-            // raw DB::table joins (that manual chain is the likely source of the bug --
-            // if the pivot column names don't match exactly, it silently returns nothing).
-            $students = Student::whereHas('classes', function ($query) use ($teacherId) {
+            // 🛠️ FIX: same disconnected-table bug that ClassController hit —
+            // App\Models\Student points at the `students` table, which only
+            // ever had 1 row and 0 rows with teacher_id set. The real
+            // student roster lives on `users` (role = student), joined to
+            // classes through the class_student pivot, so query that
+            // instead — same pattern as ClassController::getAvailableStudents.
+            $students = User::where('role', 'student')
+                ->whereHas('classes', function ($query) use ($teacherId) {
                     $query->where('teacher_id', $teacherId);
                 })
                 ->with(['classes' => function ($query) use ($teacherId) {
