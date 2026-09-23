@@ -272,6 +272,42 @@ class AdminWebController extends Controller
     }
 
     // -----------------------------------------------------------------
+    // ACCOUNTS — admin changes their own password
+    // -----------------------------------------------------------------
+
+    /**
+     * Unlike resetPassword() (which resets someone else's account and
+     * needs no confirmation), this changes the currently logged-in
+     * admin's own password, so it requires their current password first.
+     */
+    public function changeOwnPassword(Request $request)
+    {
+        $admin = Auth::guard('web')->user();
+        if (!$admin) {
+            return redirect()->route('admin.login');
+        }
+
+        $request->validate([
+            'current_password' => 'required|string',
+            'new_password'      => 'required|string|min:8|confirmed',
+        ], [
+            'current_password.required' => 'Please enter your current password.',
+            'new_password.required'     => 'Please enter a new password.',
+            'new_password.min'          => 'New password must be at least 8 characters.',
+            'new_password.confirmed'    => 'New password and confirmation do not match.',
+        ]);
+
+        if (!Hash::check($request->input('current_password'), $admin->password)) {
+            return back()->withErrors(['current_password' => 'Your current password is incorrect.']);
+        }
+
+        $admin->password = Hash::make($request->input('new_password'));
+        $admin->save();
+
+        return back()->with('success', 'Your password has been changed.');
+    }
+
+    // -----------------------------------------------------------------
     // ACCOUNTS — reset password (student, parent, or teacher)
     // -----------------------------------------------------------------
 

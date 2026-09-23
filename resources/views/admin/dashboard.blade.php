@@ -114,6 +114,22 @@
         </ul>
     </div>
 @endif
+
+        <div class="panel">
+            <h2>My Account</h2>
+            <p class="hint">Change your own admin password. This does not affect any student, parent, or teacher account.</p>
+            <form method="POST" action="{{ route('admin.change-password') }}" style="max-width: 340px; display: flex; flex-direction: column; gap: 10px;">
+                @csrf
+                <input type="password" name="current_password" placeholder="Current password" required
+                       style="padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;">
+                <input type="password" name="new_password" placeholder="New password" required minlength="8"
+                       style="padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;">
+                <input type="password" name="new_password_confirmation" placeholder="Confirm new password" required minlength="8"
+                       style="padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;">
+                <button type="submit" class="btn" style="align-self: flex-start;">Change password</button>
+            </form>
+        </div>
+
         <div class="tabs">
             <a href="{{ route('admin.dashboard', ['tab' => 'students']) }}" class="{{ $tab === 'students' ? 'active' : '' }}">Students ({{ $students->count() }})</a>
             <a href="{{ route('admin.dashboard', ['tab' => 'parents']) }}" class="{{ $tab === 'parents' ? 'active' : '' }}">Parents ({{ $parents->count() }})</a>
