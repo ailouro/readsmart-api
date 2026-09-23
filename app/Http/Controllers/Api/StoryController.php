@@ -411,7 +411,7 @@ class StoryController extends Controller
 
         $validated = $request->validate([
             'story_type'  => 'nullable|string|in:pre_test,post_test',
-            'grade_level' => 'nullable|string|in:Grade 5,Grade 6',
+            'grade_level' => 'nullable|string|in:Grade 2,Grade 3,Grade 4,Grade 5,Grade 6,Grade 7',
             'set_letter'  => 'nullable|string|in:Set A,Set B,Set C,Set D',
         ]);
 
@@ -537,5 +537,43 @@ class StoryController extends Controller
             'success' => true,
             'progress' => $progress
         ]);
+    }
+
+    /**
+     * 📚 "Aking Silid-Aklatan" (My Library) -- every story this student has
+     * finished at least once, with full story data (not just the score
+     * summary getAllProgress() returns) so the app can hand it straight to
+     * StoryViewerScreen for a re-read. A story finished more than once
+     * (replayed) is returned once, using its most recent attempt's score.
+     */
+    public function getCompletedStories($studentId)
+    {
+        try {
+            $stories = Story::join('student_progress', 'stories.id', '=', 'student_progress.story_id')
+                ->where('student_progress.user_id', $studentId)
+                ->where('student_progress.is_reading_completed', true)
+                ->select(
+                    'stories.*',
+                    'student_progress.quiz_score',
+                    'student_progress.reading_level',
+                    'student_progress.updated_at as date_completed'
+                )
+                ->orderByDesc('student_progress.updated_at')
+                ->get()
+                ->unique('id')
+                ->values();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Completed stories retrieved successfully.',
+                'data' => $stories
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch completed stories.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

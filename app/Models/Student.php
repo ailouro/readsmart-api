@@ -39,7 +39,7 @@ public function user()
 // Sa Student.php model
 public function completedStories() {
     return $this->belongsToMany(Story::class, 'student_progress')
-                ->wherePivot('is_completed', true);
+                ->wherePivot('is_reading_completed', true);
 }
 
 
