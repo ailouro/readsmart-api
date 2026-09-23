@@ -77,6 +77,7 @@ Route::post('/classes/{id}/assessments', [AssessmentController::class, 'store'])
 Route::get('/classes/{id}/assessments', [AssessmentController::class, 'index']);
 Route::get('/assessment-passage', [AssessmentController::class, 'assessmentPassage']);
 Route::post('/student/assessment-outcome', [AssessmentController::class, 'outcome']);
+Route::post('/teachers/{teacherId}/change-password', [AuthController::class, 'changePassword']);    
 Route::post('/pages/{page}/multi-script-audio', [StoryController::class, 'generateMultiScriptAudio']);
 Route::get('/classes/{id}/available-students', [App\Http\Controllers\Api\ClassController::class, 'getAvailableStudents']);
 Route::post('/classes/{id}/bulk-add-students', [App\Http\Controllers\Api\ClassController::class, 'bulkAddStudents']);
