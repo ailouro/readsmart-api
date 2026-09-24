@@ -76,9 +76,8 @@
 
     @if (count($credentials))
         <div class="warn">
-            <strong>Print or save this now.</strong> If this page is lost, you can print these slips again from the
-            Students tab (tick the students, then "Print selected slips") — but only until the student changes
-            their password. After that, the account will need a password reset.
+            <strong>Print or save this now.</strong> These passwords are shown only once and are not stored
+            anywhere in readable form. If this page is lost, the affected accounts will need new passwords.
         </div>
 
         <div class="slips">
@@ -108,8 +107,8 @@
         </div>
     @else
         <div class="empty">
-            No credentials to show. Slips appear here right after a bulk create or when you use
-            "Print selected slips" on the Students tab — reloading this page clears them.
+            No credentials to show. Passwords appear here only right after a bulk create —
+            reloading this page clears them.
         </div>
     @endif
 </div>

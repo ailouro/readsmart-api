@@ -39,24 +39,9 @@
 
             <div class="panel">
                 <h2>Existing students</h2>
-                <p class="hint">
-                    Tick students and press <strong>Print selected slips</strong> to print their login details again.
-                    This only works while the student still uses their original password; students who already
-                    changed it (or have no saved slip) are skipped — use <strong>Reset password</strong> for them.
-                </p>
-
-                {{-- Empty form; the checkboxes and the button below belong to it via form="reprintForm"
-                     (a real <form> can't wrap the table because each row has its own reset form). --}}
-                <form id="reprintForm" method="POST" action="{{ route('admin.students.reprint') }}">@csrf</form>
-                <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-                    <button type="submit" form="reprintForm" class="btn btn-sm">Print selected slips</button>
-                    <span id="reprintCount" style="font-size:13px; color:#64748b;">0 selected</span>
-                </div>
-
                 <table>
                     <thead>
                         <tr>
-                            <th style="width:36px;"><input type="checkbox" id="checkAllStudents" title="Select all"></th>
                             <th>Name</th><th>LRN</th><th>Grade</th><th>Section</th><th>Parent linked</th>
                             <th>Class</th><th>Reset password</th>
                         </tr>
@@ -64,13 +49,6 @@
                     <tbody>
                         @forelse ($students as $s)
                             <tr>
-                                <td>
-                                    @if (isset($reprintable[$s->id]))
-                                        <input type="checkbox" class="student-check" name="student_ids[]" value="{{ $s->id }}" form="reprintForm">
-                                    @else
-                                        <input type="checkbox" disabled title="No saved slip — use Reset password">
-                                    @endif
-                                </td>
                                 <td>{{ $s->name ?: trim($s->first_name . ' ' . $s->last_name) }}</td>
                                 <td>{{ $s->lrn }}</td>
                                 <td>{{ $s->grade_level }}</td>
@@ -98,7 +76,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="8" class="empty">No student accounts yet.</td></tr>
+                            <tr><td colspan="7" class="empty">No student accounts yet.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -242,98 +220,10 @@
         // comma-counting, so a stray comma in a name can't silently drop
         // a whole row.
         //
-        // Columns listed in GRID_SELECTS below are drawn as dropdowns
-        // instead of text boxes. A column with "dependsOn" gets its options
-        // from another column in the same row (Section depends on Grade).
         // ---------------------------------------------------------------
-
-        const GRID_SELECTS = {
-            studentGrid: {
-                grade_level: {
-                    placeholder: 'Select grade',
-                    options: ['GRADE 5', 'GRADE 6'],
-                },
-                section: {
-                    placeholder: 'Select section',
-                    emptyPlaceholder: 'Pick grade first',
-                    dependsOn: 'grade_level',
-                    // Edit these lists if a grade gets different sections.
-                    options: {
-                        'GRADE 5': ['SATURN', 'MARS'],
-                        'GRADE 6': ['SATURN', 'MARS'],
-                    },
-                },
-            },
-        };
 
         function gridColumns(table) {
             return table.dataset.columns.split(',');
-        }
-
-        function selectConfig(table, col) {
-            return (GRID_SELECTS[table.id] || {})[col] || null;
-        }
-
-        function cellEl(tr, col) {
-            return tr.querySelector(`[data-col="${col}"]`);
-        }
-
-        function optionsFor(table, tr, col) {
-            const cfg = selectConfig(table, col);
-            if (!cfg) return [];
-            if (cfg.dependsOn) {
-                const parent = cellEl(tr, cfg.dependsOn);
-                return (parent && cfg.options[parent.value]) || [];
-            }
-            return cfg.options;
-        }
-
-        function fillSelect(select, list, cfg, current) {
-            select.innerHTML = '';
-            const blank = document.createElement('option');
-            blank.value = '';
-            blank.textContent = list.length ? cfg.placeholder : (cfg.emptyPlaceholder || cfg.placeholder);
-            select.appendChild(blank);
-            list.forEach((item) => {
-                const opt = document.createElement('option');
-                opt.value = item;
-                opt.textContent = item;
-                select.appendChild(opt);
-            });
-            select.value = list.includes(current) ? current : '';
-        }
-
-        // Rebuild every dropdown in this row that depends on another column.
-        function refreshDependents(table, tr) {
-            gridColumns(table).forEach((col) => {
-                const cfg = selectConfig(table, col);
-                if (!cfg || !cfg.dependsOn) return;
-                const select = cellEl(tr, col);
-                if (select) fillSelect(select, optionsFor(table, tr, col), cfg, select.value);
-            });
-        }
-
-        // Match typed/pasted text ("grade 6", "Grade6", "6", "saturn") to a dropdown option.
-        function matchOption(select, val) {
-            const v = String(val || '').trim().toUpperCase();
-            if (!v) return '';
-            const opts = Array.from(select.options).map((o) => o.value).filter(Boolean);
-            const squash = (t) => t.replace(/\s+/g, '');
-            return opts.find((o) => o === v)
-                || opts.find((o) => squash(o) === squash(v))
-                || (/^\d+$/.test(v) ? opts.find((o) => o.endsWith(' ' + v)) : '')
-                || '';
-        }
-
-        function setCellValue(table, tr, col, val) {
-            const el = cellEl(tr, col);
-            if (!el) return;
-            if (el.tagName === 'SELECT') {
-                el.value = matchOption(el, val);
-                refreshDependents(table, tr);
-            } else {
-                el.value = val;
-            }
         }
 
         function buildRow(table, values) {
@@ -342,35 +232,15 @@
 
             columns.forEach((col) => {
                 const td = document.createElement('td');
-                const cfg = selectConfig(table, col);
-                let field;
-
-                if (cfg) {
-                    field = document.createElement('select');
-                    field.dataset.col = col;
-                    fillSelect(field, cfg.dependsOn ? [] : cfg.options, cfg, '');
-                    if (!cfg.dependsOn) {
-                        // changing this dropdown changes what its dependents offer
-                        field.addEventListener('change', () => refreshDependents(table, tr));
-                    }
-                } else {
-                    field = document.createElement('input');
-                    field.type = 'text';
-                    field.dataset.col = col;
-                    field.value = values && values[col] ? values[col] : '';
-                }
+                const field = document.createElement('input');
+                field.type = 'text';
+                field.dataset.col = col;
+                field.value = values && values[col] ? values[col] : '';
                 field.addEventListener('paste', (e) => handleGridPaste(e, table, tr, field));
 
                 td.appendChild(field);
                 tr.appendChild(td);
             });
-
-            // Apply starting values to dropdowns (parents first, since columns are in order)
-            if (values) {
-                columns.forEach((col) => {
-                    if (selectConfig(table, col) && values[col]) setCellValue(table, tr, col, values[col]);
-                });
-            }
 
             const removeTd = document.createElement('td');
             removeTd.className = 'col-remove';
@@ -385,7 +255,10 @@
                     tr.remove();
                 } else {
                     // keep at least one row, just clear it
-                    columns.forEach((col) => setCellValue(table, tr, col, ''));
+                    columns.forEach((col) => {
+                        const field = tr.querySelector(`[data-col="${col}"]`);
+                        if (field) field.value = '';
+                    });
                 }
                 reindexGrid(table);
             });
@@ -400,7 +273,7 @@
             const rows = table.querySelectorAll('tbody tr');
             rows.forEach((tr, i) => {
                 columns.forEach((col) => {
-                    const field = cellEl(tr, col);
+                    const field = tr.querySelector(`[data-col="${col}"]`);
                     if (field) field.name = `rows[${i}][${col}]`;
                 });
             });
@@ -419,68 +292,6 @@
             for (let i = 0; i < initialRows; i++) {
                 addGridRow(tableId);
             }
-            table.addEventListener('keydown', (e) => handleGridKeydown(e, table));
-        }
-
-        /**
-         * Keyboard navigation, like a spreadsheet.
-         *  - Up / Down: move to the cell above / below.
-         *  - Left / Right: move to the previous / next cell. In a text box this
-         *    only jumps when the cursor is already at the start / end of the
-         *    text (or all the text is selected), so you can still edit inside a cell.
-         *  - On a dropdown all four arrows move between cells. To change its
-         *    value: type the first letter or number (5, 6, S, M), or press
-         *    Space / Alt+Down to open the list.
-         */
-        function handleGridKeydown(e, table) {
-            const el = e.target;
-            if (!el.matches('input[data-col], select[data-col]')) return;
-            if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-
-            const isSelect = el.tagName === 'SELECT';
-
-            // Quick pick on dropdowns: 5 / 6 for grade, S / M for section
-            if (isSelect && e.key.length === 1 && /[A-Za-z0-9]/.test(e.key)) {
-                const k = e.key.toUpperCase();
-                const opt = Array.from(el.options).find((o) =>
-                    o.value && (o.value.startsWith(k) || (/\d/.test(k) && o.value.endsWith(k))));
-                if (opt) {
-                    e.preventDefault();
-                    el.value = opt.value;
-                    el.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-                return;
-            }
-
-            const columns = gridColumns(table);
-            const rows = Array.from(table.querySelector('tbody').rows);
-            const tr = el.closest('tr');
-            let r = rows.indexOf(tr);
-            let c = columns.indexOf(el.dataset.col);
-
-            const allSelected = !isSelect && el.selectionStart === 0 && el.selectionEnd === el.value.length;
-            const atStart = !isSelect && el.selectionStart === 0 && el.selectionEnd === 0;
-            const atEnd = !isSelect && el.selectionStart === el.value.length && el.selectionEnd === el.value.length;
-
-            switch (e.key) {
-                case 'ArrowUp':    r--; break;
-                case 'ArrowDown':  r++; break;
-                case 'ArrowLeft':
-                    if (!isSelect && !atStart && !allSelected) return;
-                    c--; break;
-                case 'ArrowRight':
-                    if (!isSelect && !atEnd && !allSelected) return;
-                    c++; break;
-                default: return;
-            }
-
-            e.preventDefault(); // also stops a dropdown from changing value
-            if (r < 0 || r >= rows.length || c < 0 || c >= columns.length) return;
-
-            const target = cellEl(rows[r], columns[c]);
-            if (!target) return;
-            target.focus();
-            if (target.tagName === 'INPUT') target.select();
         }
 
         /**
@@ -490,8 +301,6 @@
          * grid automatically if the pasted block runs past the last row.
          * A normal single-value paste (no tabs/newlines) is left alone so
          * default browser paste behavior still works for one cell.
-         * Pasted text for dropdown columns is matched to an option
-         * (e.g. "Grade 6" -> GRADE 6); unrecognised text leaves it blank.
          */
         function handleGridPaste(e, table, startTr, startInput) {
             const text = (e.clipboardData || window.clipboardData).getData('text');
@@ -522,7 +331,8 @@
                 cells.forEach((val, ci) => {
                     const targetColIndex = startColIndex + ci;
                     if (targetColIndex >= columns.length) return; // ignore extra pasted columns
-                    setCellValue(table, targetTr, columns[targetColIndex], val.trim());
+                    const input = targetTr.querySelector(`input[data-col="${columns[targetColIndex]}"]`);
+                    if (input) input.value = val.trim();
                 });
             });
         }
@@ -530,26 +340,6 @@
         document.addEventListener('DOMContentLoaded', () => {
             if (document.getElementById('studentGrid')) initGrid('studentGrid', 5);
             if (document.getElementById('parentGrid')) initGrid('parentGrid', 5);
-
-            // "Print selected slips": select-all + selected counter
-            const checkAll = document.getElementById('checkAllStudents');
-            if (checkAll) {
-                const boxes = () => Array.from(document.querySelectorAll('.student-check'));
-                const counter = document.getElementById('reprintCount');
-                const refresh = () => {
-                    const all = boxes();
-                    const n = all.filter((b) => b.checked).length;
-                    counter.textContent = n + ' selected';
-                    checkAll.checked = all.length > 0 && n === all.length;
-                    checkAll.indeterminate = n > 0 && n < all.length;
-                };
-                checkAll.addEventListener('change', () => {
-                    boxes().forEach((b) => { b.checked = checkAll.checked; });
-                    refresh();
-                });
-                boxes().forEach((b) => b.addEventListener('change', refresh));
-                refresh();
-            }
         });
     </script>
 @endpush
