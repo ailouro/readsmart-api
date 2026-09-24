@@ -151,7 +151,8 @@
         <div class="panel">
             <h2>List of user accounts (student)</h2>
             <p class="hint">
-                Tick the students, choose the section on the right, then press Add.
+                Tick the students, choose the section on the right, then press Add. Picking a section also
+                filters this list to the students of that grade and section (e.g. Grade 6 — SATURN).
                 A student can only join a section of their own grade level; adding them to another section of the same grade moves them.
             </p>
 
@@ -166,6 +167,16 @@
                     </select>
                 </label>
 
+                <label style="font-size:13px; font-weight:600; color:#475569;">
+                    Section
+                    <select id="sectionFilter">
+                        <option value="">All sections</option>
+                        @foreach ($sectionOptions as $sec)
+                            <option value="{{ strtoupper($sec) }}">{{ $sec }}</option>
+                        @endforeach
+                    </select>
+                </label>
+
                 <span class="spacer"></span>
                 <span class="sel-count" id="selCount">0 selected</span>
 
@@ -175,7 +186,7 @@
                     @else
                         <option value="" disabled selected>Add selected students to…</option>
                         @foreach ($classOptions as $opt)
-                            <option value="{{ $opt['id'] }}" data-grade="{{ $opt['gnum'] }}">Add in {{ $opt['label'] }}</option>
+                            <option value="{{ $opt['id'] }}" data-grade="{{ $opt['gnum'] }}" data-section="{{ $opt['section'] }}">Add in {{ $opt['label'] }}</option>
                         @endforeach
                     @endif
                 </select>
@@ -188,6 +199,7 @@
                         <th>Name</th>
                         <th>LRN</th>
                         <th>Grade level</th>
+                        <th>Section</th>
                         <th>Parent</th>
                         <th>GWA</th>
                         <th>Class</th>
@@ -200,10 +212,11 @@
                             $gnum = preg_match('/\d+/', (string) $s->grade_level, $m) ? (int) $m[0] : '';
                             $gwa  = $s->getAttributes()['gwa'] ?? null;
                         @endphp
-                        <tr data-grade="{{ $gnum }}">
+                        <tr data-grade="{{ $gnum }}" data-section="{{ strtoupper(trim((string) $s->section)) }}">
                             <td>{{ $s->name ?: trim($s->first_name . ' ' . $s->last_name) }}</td>
                             <td>{{ $s->lrn }}</td>
                             <td>{{ $s->grade_level }}</td>
+                            <td class="{{ $s->section ? '' : 'muted' }}">{{ $s->section ?: '—' }}</td>
                             <td class="{{ $s->parent_id ? '' : 'muted' }}">{{ $s->parent_id ? ($parentNames[$s->parent_id] ?? '—') : 'None' }}</td>
                             <td class="{{ $gwa === null || $gwa === '' ? 'muted' : '' }}">{{ $gwa === null || $gwa === '' ? '—' : $gwa }}</td>
                             <td>
@@ -218,7 +231,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="empty">No student accounts yet. Create them from the Students page first.</td></tr>
+                        <tr><td colspan="8" class="empty">No student accounts yet. Create them from the Students page first.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -288,6 +301,7 @@
     // ---------------------------------------------------------------
     const targetClass = document.getElementById('targetClass');
     const gradeFilter = document.getElementById('gradeFilter');
+    const sectionFilter = document.getElementById('sectionFilter');
     const checkAll    = document.getElementById('checkAll');
     const selCount    = document.getElementById('selCount');
     const checks      = Array.from(document.querySelectorAll('.stuCheck'));
@@ -305,10 +319,13 @@
     function refreshList() {
         const tGrade = targetGrade();
         const filter = gradeFilter.value;
+        const secFilter = sectionFilter.value;
 
         checks.forEach((cb) => {
             const row = cb.closest('tr');
-            row.style.display = (!filter || row.dataset.grade === filter) ? '' : 'none';
+            const show = (!filter || row.dataset.grade === filter)
+                      && (!secFilter || row.dataset.section === secFilter);
+            row.style.display = show ? '' : 'none';
 
             const eligible = !tGrade || cb.dataset.grade === tGrade;
             cb.disabled = !eligible;
@@ -328,8 +345,18 @@
         refreshList();
     });
     checks.forEach((cb) => cb.addEventListener('change', refreshList));
-    targetClass.addEventListener('change', refreshList);
+    // Choosing "Add in Grade 6 — SATURN" also shows only that grade + section.
+    // The filters can still be changed afterwards.
+    targetClass.addEventListener('change', () => {
+        const opt = targetClass.selectedOptions[0];
+        if (opt && opt.dataset.grade) {
+            gradeFilter.value = opt.dataset.grade;
+            sectionFilter.value = opt.dataset.section || '';
+        }
+        refreshList();
+    });
     gradeFilter.addEventListener('change', refreshList);
+    sectionFilter.addEventListener('change', refreshList);
     refreshList();
 </script>
 @endpush

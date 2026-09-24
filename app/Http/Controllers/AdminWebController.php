@@ -170,6 +170,7 @@ class AdminWebController extends Controller
                 'id'    => $c->id,
                 'label' => $c->grade_level . ' — ' . $c->section,
                 'gnum'  => $this->gradeNumber($c->grade_level),
+                'section' => strtoupper((string) $c->section),
             ])
             ->values();
 
