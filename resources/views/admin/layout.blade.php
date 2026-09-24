@@ -236,7 +236,7 @@
             </a>
 
             <div class="side-label">Classes</div>
-            <a href="{{ route('admin.classes.index') }}" class="{{ $onClasses ? 'active' : '' }}">Create class</a>
+            <a href="{{ route('admin.classes') }}" class="{{ $onClasses ? 'active' : '' }}">Create class</a>
         </aside>
 
         <main class="main">
