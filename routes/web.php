@@ -2,7 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AdminWebController;
-use App\Http\Controllers\ClassController;   
+use App\Http\Controllers\Api\ClassController;   
 
 // Your login/logout routes
 Route::get('/admin/login', [AdminWebController::class, 'showLogin'])->name('admin.login');
