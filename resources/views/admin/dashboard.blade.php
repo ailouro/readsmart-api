@@ -1,218 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Admin Dashboard — ReadSmart</title>
-    <style>
-        * { box-sizing: border-box; }
-        body {
-            margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
-            background: #f1f5f9; color: #0f172a;
-        }
-        header {
-            background: #1e293b; color: #fff; padding: 16px 24px;
-            display: flex; align-items: center; justify-content: space-between;
-        }
-        header h1 { margin: 0; font-size: 18px; }
-        header form { margin: 0; }
-        header button {
-            background: #334155; color: #fff; border: 0; padding: 8px 14px;
-            border-radius: 6px; cursor: pointer; font-size: 14px;
-        }
-        .wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
-        .tabs { display: flex; gap: 4px; border-bottom: 2px solid #cbd5e1; margin-bottom: 24px; }
-        .tabs a {
-            padding: 10px 20px; text-decoration: none; color: #475569;
-            font-weight: 600; font-size: 14px; border-radius: 8px 8px 0 0;
-        }
-        .tabs a.active { background: #fff; color: #2563eb; border: 2px solid #cbd5e1; border-bottom: 2px solid #fff; margin-bottom: -2px; }
-        .panel { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-        .panel h2 { margin: 0 0 4px; font-size: 16px; }
-        .panel p.hint { margin: 0 0 14px; color: #64748b; font-size: 13px; }
-        textarea {
-            width: 100%; min-height: 130px; padding: 12px; font-family: ui-monospace, Menlo, Consolas, monospace;
-            font-size: 13px; border: 1px solid #cbd5e1; border-radius: 8px; resize: vertical;
-        }
-        .btn {
-            margin-top: 12px; background: #16a34a; color: #fff; border: 0;
-            padding: 11px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px;
-        }
-        .btn:hover { background: #15803d; }
-        .btn-sm { padding: 6px 13px; font-size: 13px; margin: 0; }
-        .btn-red { background: #dc2626; }
-        .btn-red:hover { background: #b91c1c; }
-        table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        th { text-align: left; background: #f8fafc; padding: 10px; border-bottom: 2px solid #e2e8f0; font-size: 13px; color: #475569; }
-        td { padding: 10px; border-bottom: 1px solid #f1f5f9; }
-        .empty { text-align: center; color: #94a3b8; padding: 28px; }
-        .pill { display: inline-block; padding: 3px 9px; border-radius: 99px; font-size: 12px; font-weight: 600; }
-        .pill-ok { background: #dcfce7; color: #15803d; }
-        .pill-wait { background: #fef3c7; color: #b45309; }
-        .flash { background: #dcfce7; border: 1px solid #86efac; color: #15803d; padding: 11px 14px; border-radius: 8px; margin-bottom: 18px; font-size: 14px; }
-        code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+@extends('admin.layout')
 
-        .grid-wrap { overflow-x: auto; border: 1px solid #94a3b8; border-radius: 8px; max-height: 420px; overflow-y: auto; }
-        table.grid { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-        table.grid th {
-            text-align: left; background: #dbeafe; color: #1e3a8a;
-            padding: 10px 12px; font-weight: 700;
-            border: 1px solid #94a3b8; white-space: nowrap;
-            position: sticky; top: 0; z-index: 1;
-        }
-        table.grid tbody tr:nth-child(even) { background: #f8fafc; }
-        table.grid tbody tr:hover { background: #eff6ff; }
-        table.grid td {
-            padding: 0; border: 1px solid #cbd5e1;
-        }
-        table.grid td.col-remove, table.grid th.col-remove { border-right: 1px solid #94a3b8; width: 40px; text-align: center; }
-        table.grid input, table.grid select {
-            width: 100%; border: 0; padding: 9px 12px; font-size: 13.5px;
-            font-family: ui-monospace, Menlo, Consolas, monospace;
-            background: transparent;
-        }
-        table.grid input:focus, table.grid select:focus { outline: 2px solid #2563eb; outline-offset: -2px; background: #fff; position: relative; z-index: 2; }
-        .row-remove-btn {
-            border: 0; background: transparent; color: #cbd5e1; cursor: pointer;
-            font-size: 17px; line-height: 1; padding: 9px; width: 100%;
-        }
-        .row-remove-btn:hover { color: #dc2626; }
-        .btn-add {
-            background: #fff; color: #2563eb; border: 1px dashed #93c5fd;
-            margin-right: 8px;
-        }
-        .btn-add:hover { background: #eff6ff; }
-        .inline-form { display: flex; gap: 6px; align-items: center; margin: 0; }
-        .inline-form select {
-            padding: 5px 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px;
-        }
-        .btn-teal { background: #0891b2; }
-        .btn-teal:hover { background: #0e7490; }
+@section('title', 'Admin Dashboard')
 
-        /* Profile at Modal Styles */
-    .profile-menu { display: flex; align-items: center; gap: 12px; position: relative; }
-    .profile-icon { 
-        background: #3b82f6; color: white; width: 36px; height: 36px; 
-        border-radius: 50%; display: flex; justify-content: center; align-items: center; 
-        font-weight: bold; cursor: pointer; user-select: none;
-    }
-    .dropdown {
-        display: none; position: absolute; top: 100%; right: 0; margin-top: 8px;
-        background: white; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        width: 160px; overflow: hidden; z-index: 50;
-    }
-    .dropdown.active { display: block; }
-    .dropdown button {
-        display: block; width: 100%; text-align: left; padding: 10px 16px; 
-        background: none; border: none; font-size: 14px; cursor: pointer; color: #0f172a;
-    }
-    .dropdown button:hover { background: #f1f5f9; }
-    
-    .modal-overlay {
-        display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: center;
-    }
-    .modal-overlay.active { display: flex; }
-    .modal-content {
-        background: #fff; padding: 24px; border-radius: 12px; width: 100%; max-width: 400px;
-        color: #0f172a;
-    }
-    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    .modal-header h2 { margin: 0; font-size: 18px; }
-    .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #64748b; line-height: 1; }
-    .close-btn:hover { color: #0f172a; }
-    </style>
-</head>
-<body>
-    <header>
-        <h1>ReadSmart Admin</h1>
-        <div class="profile-menu">
-            <div class="profile-icon" onclick="document.getElementById('profileDropdown').classList.toggle('active')">
-                {{ substr(Auth::user()->name ?? 'A', 0, 1) }}
-            </div>
-            <div id="profileDropdown" class="dropdown">
-                <button onclick="openProfileModal()">Account Settings</button>
-                <form method="POST" action="{{ route('admin.logout') }}" style="margin: 0;">
-                    @csrf
-                    <button type="submit" style="color: #dc2626;">Sign out</button>
-                </form>
-            </div>
-        </div>
-    </header>
-
-    <!-- Ito ang Account Settings Modal -->
-    <div id="profileModal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Account Settings</h2>
-                <button class="close-btn" onclick="closeProfileModal()">&times;</button>
-            </div>
-            <form method="POST" action="{{ route('admin.change-password') }}" style="display: flex; flex-direction: column; gap: 12px;">
-                @csrf
-                
-                <label style="font-size: 14px; font-weight: 600; margin-bottom: -8px;">Admin Name</label>
-                <input type="text" name="name" value="{{ Auth::user()->name ?? '' }}" required
-                       style="padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;">
-                
-                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 8px 0; width: 100%;">
-                
-                <label style="font-size: 14px; font-weight: 600; margin-bottom: -8px;">Change Password <span style="font-weight: 400; color: #64748b;">(Leave blank if no change)</span></label>
-                <input type="password" name="current_password" placeholder="Current password"
-                       style="padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;">
-                <input type="password" name="new_password" placeholder="New password" minlength="8"
-                       style="padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;">
-                <input type="password" name="new_password_confirmation" placeholder="Confirm new password" minlength="8"
-                       style="padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;">
-                
-                <button type="submit" class="btn" style="margin-top: 8px;">Save Changes</button>
-            </form>
-        </div>
-    </div>
-    </header>
-
-    <script>
-        function openProfileModal() {
-            document.getElementById('profileDropdown').classList.remove('active');
-            document.getElementById('profileModal').classList.add('active');
-        }
-        function closeProfileModal() {
-            document.getElementById('profileModal').classList.remove('active');
-        }
-        
-        // Magsasara ang dropdown kapag nag-click ka sa labas
-        document.addEventListener('click', function(event) {
-            const menu = document.querySelector('.profile-menu');
-            if (!menu.contains(event.target)) {
-                const dropdown = document.getElementById('profileDropdown');
-                if(dropdown) dropdown.classList.remove('active');
-            }
-        });
-    </script>
-
-    <div class="wrap">
-        @if (session('success'))
-    <div class="flash">{{ session('success') }}</div>
-@endif
-
-@if ($errors->any())
-    <div class="errors" style="background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; padding: 11px 14px; border-radius: 8px; margin-bottom: 18px; font-size: 14px;">
-        <strong>Please fix the following issues:</strong>
-        <ul style="margin: 6px 0 0; padding-left: 20px;">
-            @foreach ($errors->all() as $error)
-                <li>{{ $error }}</li>
-            @endforeach
-        </ul>
-    </div>
-@endif
-
-        
-
-        <div class="tabs">
-            <a href="{{ route('admin.dashboard', ['tab' => 'students']) }}" class="{{ $tab === 'students' ? 'active' : '' }}">Students ({{ $students->count() }})</a>
-            <a href="{{ route('admin.dashboard', ['tab' => 'parents']) }}" class="{{ $tab === 'parents' ? 'active' : '' }}">Parents ({{ $parents->count() }})</a>
-            <a href="{{ route('admin.dashboard', ['tab' => 'teachers']) }}" class="{{ $tab === 'teachers' ? 'active' : '' }}">Teachers ({{ $teachers->count() }})</a>
-        </div>
-
+@section('content')
         {{-- ================= STUDENTS ================= --}}
         @if ($tab === 'students')
             <div class="panel">
@@ -220,12 +10,13 @@
                 <p class="hint">
                     Fill in each row, or copy a block of cells from Excel/Google Sheets and paste directly into the grid —
                     it will fill across columns and add rows automatically.<br>
-                    Students log in using their <strong>LRN</strong>. Passwords are generated automatically and shown once on the printout.
+                    Students log in using their <strong>LRN</strong>. Passwords are generated automatically and shown once on the printout.<br>
+                    To put students in a section, use <a href="{{ route('admin.classes') }}">Classes</a> in the sidebar.
                 </p>
                 <form method="POST" action="{{ route('admin.students.bulk') }}">
                     @csrf
                     <div class="grid-wrap">
-                        <table class="grid" id="studentGrid" data-columns="first_name,last_name,lrn,grade_level,section,teacher_id">
+                        <table class="grid" id="studentGrid" data-columns="first_name,last_name,lrn,grade_level,section">
                             <thead>
                                 <tr>
                                     <th>First Name</th>
@@ -233,7 +24,6 @@
                                     <th>LRN</th>
                                     <th>Grade Level</th>
                                     <th>Section</th>
-                                    <th>Assign to Teacher</th>
                                     <th class="col-remove"></th>
                                 </tr>
                             </thead>
@@ -253,7 +43,7 @@
                     <thead>
                         <tr>
                             <th>Name</th><th>LRN</th><th>Grade</th><th>Section</th><th>Parent linked</th>
-                            <th>Teacher</th><th>Enrollment</th><th>Reset password</th>
+                            <th>Class</th><th>Reset password</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -271,24 +61,10 @@
                                     @endif
                                 </td>
                                 <td>
-                                    <form class="inline-form" method="POST" action="{{ route('admin.students.reassign-teacher', $s->id) }}">
-                                        @csrf
-                                        <select name="teacher_id">
-                                            <option value="">— Unassigned —</option>
-                                            @foreach ($approvedTeachers as $t)
-                                                <option value="{{ $t->id }}" {{ (string) $s->teacher_id === (string) $t->id ? 'selected' : '' }}>{{ $t->name }}{{ $t->grade_level ? ' — ' . $t->grade_level : '' }}</option>
-                                            @endforeach
-                                        </select>
-                                        <button type="submit" class="btn btn-sm">Save</button>
-                                    </form>
-                                </td>
-                                <td>
-                                    @if ($s->enrollment_status === 'enrolled')
-                                        <span class="pill pill-ok">Enrolled</span>
-                                    @elseif ($s->enrollment_status === 'pending')
-                                        <span class="pill pill-wait">Pending teacher</span>
+                                    @if (!empty($classLabels[$s->id]))
+                                        <span class="pill pill-ok">{{ $classLabels[$s->id] }}</span>
                                     @else
-                                        <span class="pill pill-wait">Unassigned</span>
+                                        <span class="pill pill-wait">Not in a class</span>
                                     @endif
                                 </td>
                                 <td>
@@ -300,7 +76,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="8" class="empty">No student accounts yet.</td></tr>
+                            <tr><td colspan="7" class="empty">No student accounts yet.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -432,15 +208,10 @@
                 </table>
             </div>
         @endif
-    </div>
+@endsection
 
+@push('scripts')
     <script>
-        // List of approved teachers, injected from the server, used to
-        // populate the "Assign to Teacher" dropdown in the bulk-create
-        // grid. Kept as plain data (id + name) — no PHP round-trip needed
-        // per row.
-        const APPROVED_TEACHERS = @json($approvedTeachers->map(fn($t) => ['id' => $t->id, 'name' => $t->name . ($t->grade_level ? ' — ' . $t->grade_level : '')])->values());
-
         // ---------------------------------------------------------------
         // Editable spreadsheet-style grid for bulk student/parent create.
         // Each <table class="grid"> declares its field order via
@@ -449,34 +220,10 @@
         // comma-counting, so a stray comma in a name can't silently drop
         // a whole row.
         //
-        // The "teacher_id" column is special-cased to render a <select>
-        // of approved teachers instead of a free-text <input> — everything
-        // else (reindexing, row add/remove) treats it the same way via the
-        // generic [data-col="..."] attribute selector.
         // ---------------------------------------------------------------
 
         function gridColumns(table) {
             return table.dataset.columns.split(',');
-        }
-
-        function buildTeacherSelect(col, value) {
-            const select = document.createElement('select');
-            select.dataset.col = col;
-
-            const blank = document.createElement('option');
-            blank.value = '';
-            blank.textContent = '— Unassigned —';
-            select.appendChild(blank);
-
-            APPROVED_TEACHERS.forEach((t) => {
-                const opt = document.createElement('option');
-                opt.value = t.id;
-                opt.textContent = t.name;
-                select.appendChild(opt);
-            });
-
-            if (value) select.value = String(value);
-            return select;
         }
 
         function buildRow(table, values) {
@@ -485,17 +232,11 @@
 
             columns.forEach((col) => {
                 const td = document.createElement('td');
-                let field;
-
-                if (col === 'teacher_id') {
-                    field = buildTeacherSelect(col, values && values[col]);
-                } else {
-                    field = document.createElement('input');
-                    field.type = 'text';
-                    field.dataset.col = col;
-                    field.value = values && values[col] ? values[col] : '';
-                    field.addEventListener('paste', (e) => handleGridPaste(e, table, tr, field));
-                }
+                const field = document.createElement('input');
+                field.type = 'text';
+                field.dataset.col = col;
+                field.value = values && values[col] ? values[col] : '';
+                field.addEventListener('paste', (e) => handleGridPaste(e, table, tr, field));
 
                 td.appendChild(field);
                 tr.appendChild(td);
@@ -601,5 +342,4 @@
             if (document.getElementById('parentGrid')) initGrid('parentGrid', 5);
         });
     </script>
-</body>
-</html>
+@endpush
