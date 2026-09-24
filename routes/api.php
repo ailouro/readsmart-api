@@ -20,6 +20,7 @@ Route::post('/classes', [ClassController::class, 'store']);
 Route::get('/classes/{id}/stories', [ClassEnrollmentController::class, 'getClassStories']);
 Route::post('/classes/{id}/assign-story', [ClassEnrollmentController::class, 'assignStoryToClass']);
 Route::post('/classes/{id}/unassign-story', [ClassEnrollmentController::class, 'unassignStoryFromClass']);
+Route::get('/classes/{id}/story-tally', [ClassEnrollmentController::class, 'getClassStoryTally']);
 Route::post('/classes', [ClassEnrollmentController::class, 'createClass']);
 Route::get('/get-audio', [StoryAudioController::class, 'getAudio']);
 Route::post('/login', [AuthController::class, 'login']);

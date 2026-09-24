@@ -309,13 +309,92 @@ public function getTeacherDashboardSummary($teacher_id)
         ], 200);
     }
 
-// Assign an existing library story to a class
+// 📊 Per-story tally for a class: how many enrolled students have finished
+// each assigned story. "Finished" is the same rule the student app uses to
+// unlock the Post-Test: reading done AND, if the story has a quiz, the quiz
+// taken. Keys are "<story_id>:<test_type>" because one story can be assigned
+// to the same class as both a pre_test and a post_test.
+public function getClassStoryTally($classId)
+{
+    $class = SchoolClass::with('stories.quiz')->findOrFail($classId);
+
+    $studentIds = $class->students()->pluck('users.id')->all();
+    $storyIds   = $class->stories->pluck('id')->unique()->values()->all();
+
+    // Newest attempt per (student, story, test_type), like getClassStories.
+    $latest = [];
+    if (!empty($studentIds) && !empty($storyIds)) {
+        $rows = StudentProgress::whereIn('user_id', $studentIds)
+            ->whereIn('story_id', $storyIds)
+            ->orderBy('id')
+            ->get();
+
+        foreach ($rows as $row) {
+            // Ordered by id, so a later attempt overwrites an earlier one.
+            $latest[$row->user_id . '|' . $row->story_id . '|' . $row->test_type] = $row;
+        }
+    }
+
+    $tally = [];
+    foreach ($class->stories as $story) {
+        $testType = $story->pivot->test_type ?? 'post_test';
+        $hasQuiz  = $story->quiz !== null;
+        $finished = 0;
+
+        foreach ($studentIds as $studentId) {
+            $row = $latest[$studentId . '|' . $story->id . '|' . $testType] ?? null;
+            if (!$row) {
+                continue;
+            }
+            $readingDone = (bool) $row->is_reading_completed;
+            $quizTaken   = $row->quiz_score !== null;
+
+            if ($readingDone && (!$hasQuiz || $quizTaken)) {
+                $finished++;
+            }
+        }
+
+        $tally[$story->id . ':' . $testType] = $finished;
+    }
+
+    return response()->json([
+        'success'        => true,
+        'total_students' => count($studentIds),
+        'tally'          => (object) $tally,
+    ], 200);
+}
+
+// Assign an existing library story to a class as a pre_test or post_test story.
 public function assignStoryToClass(Request $request, $classId)
 {
+    $validated = $request->validate([
+        'story_id'  => 'required|exists:stories,id',
+        'test_type' => 'required|in:pre_test,post_test',
+    ]);
+
+    $class = SchoolClass::findOrFail($classId);
+
+    // A story can sit in the same class twice (once as pre_test, once as
+    // post_test), so check the exact (story, test_type) pair instead of
+    // using sync(), which would overwrite the other row's test_type.
+    $alreadyAssigned = $class->stories()
+        ->wherePivot('test_type', $validated['test_type'])
+        ->where('stories.id', $validated['story_id'])
+        ->exists();
+
+    if (!$alreadyAssigned) {
+        $class->stories()->attach($validated['story_id'], [
+            'test_type' => $validated['test_type'],
+        ]);
+    }
+
     return response()->json([
-        'status' => 'error',
-        'message' => 'Assigning stories directly to classes is deprecated. Please assign reading tests via the Students tab.'
-    ], 410);
+        'success' => true,
+        'status'  => 'success',
+        'message' => $alreadyAssigned
+            ? 'Story was already assigned to this class.'
+            : 'Story assigned to class successfully!',
+    ], 200);
 }
 
 // Unassign a story from a class
