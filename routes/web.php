@@ -12,6 +12,7 @@ Route::post('/admin/logout', [AdminWebController::class, 'logout'])->name('admin
 // Your dashboard routes (make sure the reset-password route is in here!)
 Route::get('/admin/dashboard', [AdminWebController::class, 'index'])->name('admin.dashboard');
 Route::get('/admin/credentials', [AdminWebController::class, 'credentials'])->name('admin.credentials');
+Route::post('/students/reset-print', [AdminWebController::class, 'resetAndPrintCredentials'])->name('admin.students.reset-print');
 Route::post('/admin/students/bulk', [AdminWebController::class, 'bulkCreateStudents'])->name('admin.students.bulk');
 Route::post('/admin/parents/bulk', [AdminWebController::class, 'bulkCreateParents'])->name('admin.parents.bulk');
 Route::post('/admin/teachers/{id}/approve', [AdminWebController::class, 'approveTeacher'])->name('admin.teachers.approve');

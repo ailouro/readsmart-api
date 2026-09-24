@@ -6,9 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\SchoolClass;
 use App\Models\Student;
 use App\Models\User;
-use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
@@ -106,16 +104,9 @@ class AdminWebController extends Controller
         $navCounts   = $this->navCounts();
         $classLabels = $this->classLabelsByStudent();
 
-        // Students whose original password is still saved for reprinting
-        // (user_id => true). Whether they have since changed it is checked
-        // when the slips are actually printed — see reprintCredentials().
-        $reprintable = Schema::hasTable('student_initial_passwords')
-            ? DB::table('student_initial_passwords')->pluck('user_id')->flip()->map(fn () => true)->all()
-            : [];
-
         return view('admin.dashboard', compact(
             'tab', 'students', 'parents', 'childrenByParent', 'teachers', 'approvedTeachers',
-            'navCounts', 'classLabels', 'reprintable'
+            'navCounts', 'classLabels'
         ));
     }
 
@@ -451,7 +442,6 @@ class AdminWebController extends Controller
                     $student->enrollment_status = $teacherId ? 'pending' : 'unassigned';
                     $student->save();
 
-                    $this->saveInitialPassword($user->id, $plainPassword);
                 });
 
                 $created[] = [
@@ -583,24 +573,17 @@ class AdminWebController extends Controller
     $user->password = Hash::make($newPassword);
     $user->save();
 
-    if ($user->role === 'student') {
-        $this->saveInitialPassword($user->id, $newPassword);
-    }
-
     return back()->with('success', "Password for {$user->name} has been reset to '{$newPassword}'.");
 }
 
     // -----------------------------------------------------------------
-    // REPRINT SLIPS — for students who still use their original password
+    // RESET & PRINT SLIPS — for students that ALREADY have an account.
+    // Passwords are stored hashed, so an old password can't be read back.
+    // Instead, each ticked student gets a NEW random password and a fresh
+    // slip is printed (same page as after a bulk create) to hand to the
+    // teacher. Their old password stops working immediately.
     // -----------------------------------------------------------------
-
-    /**
-     * Rebuilds the printable slips for the ticked students. A slip is only
-     * printed if the saved original password STILL matches the student's
-     * current password hash — if they have changed it, the saved copy is
-     * useless (and is deleted) and that student is skipped.
-     */
-    public function reprintCredentials(Request $request)
+    public function resetAndPrintCredentials(Request $request)
     {
         $data = $request->validate([
             'student_ids'   => 'required|array|min:1',
@@ -617,67 +600,33 @@ class AdminWebController extends Controller
             ->orderBy('last_name')
             ->get();
 
-        $saved = DB::table('student_initial_passwords')
-            ->whereIn('user_id', $students->pluck('id'))
-            ->get()
-            ->keyBy('user_id');
-
         $credentials = [];
-        $errors      = [];
 
-        foreach ($students as $s) {
-            $name = $s->name ?: trim($s->first_name . ' ' . $s->last_name);
-            $row  = $saved->get($s->id);
+        DB::transaction(function () use ($students, &$credentials) {
+            foreach ($students as $s) {
+                $plain = $this->generatePassword();
 
-            if (!$row) {
-                $errors[] = "{$name}: no saved password — use Reset password, then print again.";
-                continue;
+                $s->password = Hash::make($plain);
+                $s->save();
+
+                $credentials[] = [
+                    'type'        => 'student',
+                    'name'        => $s->name ?: trim($s->first_name . ' ' . $s->last_name),
+                    'login'       => $s->lrn,
+                    'login_label' => 'LRN',
+                    'password'    => $plain,
+                    'grade_level' => $s->grade_level,
+                    'section'     => $s->section,
+                ];
             }
-
-            try {
-                $plain = Crypt::decryptString($row->password);
-            } catch (DecryptException $e) {
-                $errors[] = "{$name}: saved password could not be read — use Reset password instead.";
-                continue;
-            }
-
-            if (!Hash::check($plain, $s->password)) {
-                DB::table('student_initial_passwords')->where('user_id', $s->id)->delete();
-                $errors[] = "{$name} already changed their password — skipped.";
-                continue;
-            }
-
-            $credentials[] = [
-                'type'        => 'student',
-                'name'        => $name,
-                'login'       => $s->lrn,
-                'login_label' => 'LRN',
-                'password'    => $plain,
-                'grade_level' => $s->grade_level,
-                'section'     => $s->section,
-            ];
-        }
+        });
 
         return redirect()
             ->route('admin.credentials')
             ->with('credentials', $credentials)
-            ->with('credential_errors', $errors);
+            ->with('credential_errors', []);
     }
 
-    /** Keeps an encrypted copy of a student's original password for reprinting. */
-    private function saveInitialPassword(int $userId, string $plain): void
-    {
-        DB::table('student_initial_passwords')->updateOrInsert(
-            ['user_id' => $userId],
-            [
-                'password'   => Crypt::encryptString($plain),
-                'updated_at' => now(),
-                'created_at' => now(),
-            ]
-        );
-    }
-
-   
     public function bulkCreateParents(Request $request)
     {
         $request->validate([
