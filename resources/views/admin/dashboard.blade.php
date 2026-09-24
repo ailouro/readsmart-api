@@ -88,16 +88,106 @@
         }
         .btn-teal { background: #0891b2; }
         .btn-teal:hover { background: #0e7490; }
+
+        /* Profile at Modal Styles */
+    .profile-menu { display: flex; align-items: center; gap: 12px; position: relative; }
+    .profile-icon { 
+        background: #3b82f6; color: white; width: 36px; height: 36px; 
+        border-radius: 50%; display: flex; justify-content: center; align-items: center; 
+        font-weight: bold; cursor: pointer; user-select: none;
+    }
+    .dropdown {
+        display: none; position: absolute; top: 100%; right: 0; margin-top: 8px;
+        background: white; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        width: 160px; overflow: hidden; z-index: 50;
+    }
+    .dropdown.active { display: block; }
+    .dropdown button {
+        display: block; width: 100%; text-align: left; padding: 10px 16px; 
+        background: none; border: none; font-size: 14px; cursor: pointer; color: #0f172a;
+    }
+    .dropdown button:hover { background: #f1f5f9; }
+    
+    .modal-overlay {
+        display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-content {
+        background: #fff; padding: 24px; border-radius: 12px; width: 100%; max-width: 400px;
+        color: #0f172a;
+    }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .modal-header h2 { margin: 0; font-size: 18px; }
+    .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #64748b; line-height: 1; }
+    .close-btn:hover { color: #0f172a; }
     </style>
 </head>
 <body>
     <header>
         <h1>ReadSmart Admin</h1>
-        <form method="POST" action="{{ route('admin.logout') }}">
-            @csrf
-            <button type="submit">Sign out</button>
-        </form>
+        <div class="profile-menu">
+            <div class="profile-icon" onclick="document.getElementById('profileDropdown').classList.toggle('active')">
+                {{ substr(Auth::user()->name ?? 'A', 0, 1) }}
+            </div>
+            <div id="profileDropdown" class="dropdown">
+                <button onclick="openProfileModal()">Account Settings</button>
+                <form method="POST" action="{{ route('admin.logout') }}" style="margin: 0;">
+                    @csrf
+                    <button type="submit" style="color: #dc2626;">Sign out</button>
+                </form>
+            </div>
+        </div>
     </header>
+
+    <!-- Ito ang Account Settings Modal -->
+    <div id="profileModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Account Settings</h2>
+                <button class="close-btn" onclick="closeProfileModal()">&times;</button>
+            </div>
+            <form method="POST" action="{{ route('admin.change-password') }}" style="display: flex; flex-direction: column; gap: 12px;">
+                @csrf
+                
+                <label style="font-size: 14px; font-weight: 600; margin-bottom: -8px;">Admin Name</label>
+                <input type="text" name="name" value="{{ Auth::user()->name ?? '' }}" required
+                       style="padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;">
+                
+                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 8px 0; width: 100%;">
+                
+                <label style="font-size: 14px; font-weight: 600; margin-bottom: -8px;">Change Password <span style="font-weight: 400; color: #64748b;">(Leave blank if no change)</span></label>
+                <input type="password" name="current_password" placeholder="Current password"
+                       style="padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;">
+                <input type="password" name="new_password" placeholder="New password" minlength="8"
+                       style="padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;">
+                <input type="password" name="new_password_confirmation" placeholder="Confirm new password" minlength="8"
+                       style="padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;">
+                
+                <button type="submit" class="btn" style="margin-top: 8px;">Save Changes</button>
+            </form>
+        </div>
+    </div>
+    </header>
+
+    <script>
+        function openProfileModal() {
+            document.getElementById('profileDropdown').classList.remove('active');
+            document.getElementById('profileModal').classList.add('active');
+        }
+        function closeProfileModal() {
+            document.getElementById('profileModal').classList.remove('active');
+        }
+        
+        // Magsasara ang dropdown kapag nag-click ka sa labas
+        document.addEventListener('click', function(event) {
+            const menu = document.querySelector('.profile-menu');
+            if (!menu.contains(event.target)) {
+                const dropdown = document.getElementById('profileDropdown');
+                if(dropdown) dropdown.classList.remove('active');
+            }
+        });
+    </script>
 
     <div class="wrap">
         @if (session('success'))
@@ -115,20 +205,7 @@
     </div>
 @endif
 
-        <div class="panel">
-            <h2>My Account</h2>
-            <p class="hint">Change your own admin password. This does not affect any student, parent, or teacher account.</p>
-            <form method="POST" action="{{ route('admin.change-password') }}" style="max-width: 340px; display: flex; flex-direction: column; gap: 10px;">
-                @csrf
-                <input type="password" name="current_password" placeholder="Current password" required
-                       style="padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;">
-                <input type="password" name="new_password" placeholder="New password" required minlength="8"
-                       style="padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;">
-                <input type="password" name="new_password_confirmation" placeholder="Confirm new password" required minlength="8"
-                       style="padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;">
-                <button type="submit" class="btn" style="align-self: flex-start;">Change password</button>
-            </form>
-        </div>
+        
 
         <div class="tabs">
             <a href="{{ route('admin.dashboard', ['tab' => 'students']) }}" class="{{ $tab === 'students' ? 'active' : '' }}">Students ({{ $students->count() }})</a>
@@ -167,6 +244,8 @@
                     <button type="submit" class="btn">Create accounts &amp; print slips</button>
                 </form>
             </div>
+
+            
 
             <div class="panel">
                 <h2>Existing students</h2>

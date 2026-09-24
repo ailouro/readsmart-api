@@ -287,35 +287,41 @@ class AdminWebController extends Controller
             return redirect()->route('admin.login');
         }
 
-        $request->validate([
-            'current_password' => 'required|string',
-            'new_password'      => 'required|string|min:8|confirmed',
-        ], [
-            'current_password.required' => 'Please enter your current password.',
+        // Basic rule para sa pangalan
+        $rules = [
+            'name' => 'required|string|max:255',
+        ];
+
+        // I-validate lamang ang password kung may ini-type sa mga password fields
+        if ($request->filled('current_password') || $request->filled('new_password')) {
+            $rules['current_password'] = 'required|string';
+            $rules['new_password']     = 'required|string|min:8|confirmed';
+        }
+
+        $request->validate($rules, [
+            'name.required'             => 'Please enter your name.',
+            'current_password.required' => 'Please enter your current password to change it.',
             'new_password.required'     => 'Please enter a new password.',
             'new_password.min'          => 'New password must be at least 8 characters.',
             'new_password.confirmed'    => 'New password and confirmation do not match.',
         ]);
 
-        if (!Hash::check($request->input('current_password'), $admin->password)) {
-            return back()->withErrors(['current_password' => 'Your current password is incorrect.']);
+        // I-update ang pangalan
+        $admin->name = $request->input('name');
+
+        // I-update ang password kung may nilagay na inputs
+        if ($request->filled('current_password')) {
+            if (!Hash::check($request->input('current_password'), $admin->password)) {
+                return back()->withErrors(['current_password' => 'Your current password is incorrect.']);
+            }
+            $admin->password = Hash::make($request->input('new_password'));
         }
 
-        $admin->password = Hash::make($request->input('new_password'));
         $admin->save();
 
-        return back()->with('success', 'Your password has been changed.');
+        return back()->with('success', 'Account settings updated successfully.');
     }
-
-    // -----------------------------------------------------------------
-    // ACCOUNTS — reset password (student, parent, or teacher)
-    // -----------------------------------------------------------------
-
-    /**
-     * Generates a brand-new password for any account and reuses the same
-     * "shown once, never stored in plaintext" credential-sheet flow as
-     * bulk create. The old password stops working immediately.
-     */
+   
     public function resetPassword($id)
 {
     $user = User::findOrFail($id);
