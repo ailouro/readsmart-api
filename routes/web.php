@@ -26,3 +26,5 @@ Route::get('/admin/classes', [AdminWebController::class, 'classes'])->name('admi
 Route::post('/admin/classes', [AdminWebController::class, 'storeClass'])->name('admin.classes.store');
 Route::post('/admin/classes/assign', [AdminWebController::class, 'assignStudentsToClass'])->name('admin.classes.assign');
 Route::post('/admin/classes/{classId}/students/{studentId}', [AdminWebController::class, 'removeStudentFromClass'])->name('admin.classes.remove-student');
+Route::post('/students/bulk', [AdminWebController::class, 'bulkCreateStudents'])->name('admin.students.bulk');
+Route::post('/students/reprint', [AdminWebController::class, 'reprintCredentials'])->name('admin.students.reprint');
