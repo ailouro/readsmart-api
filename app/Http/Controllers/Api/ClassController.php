@@ -60,7 +60,8 @@ class ClassController extends Controller
     $classes = SchoolClass::all();
     $teachers = User::where('role', 'teacher')->get();
 
-    return view('admin.classes', compact('grades', 'classes', 'teachers'));
+    $sectionOptions = Section::pluck('name')->toArray(); // or whatever your data source is
+    return view('admin.classes', compact('sectionOptions'));
 }
 
     public function assignStory(Request $request, $id)
