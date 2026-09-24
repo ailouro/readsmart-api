@@ -39,9 +39,24 @@
 
             <div class="panel">
                 <h2>Existing students</h2>
+                <p class="hint">
+                    Tick students and press <strong>Print selected slips</strong> to print their login details again.
+                    This only works while the student still uses their original password; students who already
+                    changed it (or have no saved slip) are skipped — use <strong>Reset password</strong> for them.
+                </p>
+
+                {{-- Empty form; the checkboxes and the button below belong to it via form="reprintForm"
+                     (a real <form> can't wrap the table because each row has its own reset form). --}}
+                <form id="reprintForm" method="POST" action="{{ route('admin.students.reprint') }}">@csrf</form>
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+                    <button type="submit" form="reprintForm" class="btn btn-sm">Print selected slips</button>
+                    <span id="reprintCount" style="font-size:13px; color:#64748b;">0 selected</span>
+                </div>
+
                 <table>
                     <thead>
                         <tr>
+                            <th style="width:36px;"><input type="checkbox" id="checkAllStudents" title="Select all"></th>
                             <th>Name</th><th>LRN</th><th>Grade</th><th>Section</th><th>Parent linked</th>
                             <th>Class</th><th>Reset password</th>
                         </tr>
@@ -49,6 +64,13 @@
                     <tbody>
                         @forelse ($students as $s)
                             <tr>
+                                <td>
+                                    @if (isset($reprintable[$s->id]))
+                                        <input type="checkbox" class="student-check" name="student_ids[]" value="{{ $s->id }}" form="reprintForm">
+                                    @else
+                                        <input type="checkbox" disabled title="No saved slip — use Reset password">
+                                    @endif
+                                </td>
                                 <td>{{ $s->name ?: trim($s->first_name . ' ' . $s->last_name) }}</td>
                                 <td>{{ $s->lrn }}</td>
                                 <td>{{ $s->grade_level }}</td>
@@ -76,7 +98,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="7" class="empty">No student accounts yet.</td></tr>
+                            <tr><td colspan="8" class="empty">No student accounts yet.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -508,6 +530,26 @@
         document.addEventListener('DOMContentLoaded', () => {
             if (document.getElementById('studentGrid')) initGrid('studentGrid', 5);
             if (document.getElementById('parentGrid')) initGrid('parentGrid', 5);
+
+            // "Print selected slips": select-all + selected counter
+            const checkAll = document.getElementById('checkAllStudents');
+            if (checkAll) {
+                const boxes = () => Array.from(document.querySelectorAll('.student-check'));
+                const counter = document.getElementById('reprintCount');
+                const refresh = () => {
+                    const all = boxes();
+                    const n = all.filter((b) => b.checked).length;
+                    counter.textContent = n + ' selected';
+                    checkAll.checked = all.length > 0 && n === all.length;
+                    checkAll.indeterminate = n > 0 && n < all.length;
+                };
+                checkAll.addEventListener('change', () => {
+                    boxes().forEach((b) => { b.checked = checkAll.checked; });
+                    refresh();
+                });
+                boxes().forEach((b) => b.addEventListener('change', refresh));
+                refresh();
+            }
         });
     </script>
 @endpush
