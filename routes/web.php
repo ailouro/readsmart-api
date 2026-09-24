@@ -23,3 +23,4 @@ Route::post('/admin/change-password', [AdminWebController::class, 'changeOwnPass
 Route::post('/admin/students/{id}/reassign-teacher', [App\Http\Controllers\AdminWebController::class, 'reassignTeacher'])->name('admin.students.reassign-teacher');
 Route::get('/', fn () => response()->json(['status' => 'ok']));
 Route::get('/admin/classes', [ClassController::class, 'index'])->name('admin.classes.index');
+Route::post('/admin/classes', [App\Http\Controllers\Api\ClassController::class, 'store'])->name('admin.classes.store');
