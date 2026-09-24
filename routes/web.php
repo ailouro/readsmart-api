@@ -22,4 +22,4 @@ Route::post('/admin/users/{id}/reset-password', [AdminWebController::class, 'res
 Route::post('/admin/change-password', [AdminWebController::class, 'changeOwnPassword'])->name('admin.change-password');
 Route::post('/admin/students/{id}/reassign-teacher', [App\Http\Controllers\AdminWebController::class, 'reassignTeacher'])->name('admin.students.reassign-teacher');
 Route::get('/', fn () => response()->json(['status' => 'ok']));
-Route::get('/admin/classes', [ClassController::class, 'index'])->name('admin.classes');
+Route::get('/admin/classes', [ClassController::class, 'index'])->name('admin.classes.index');
