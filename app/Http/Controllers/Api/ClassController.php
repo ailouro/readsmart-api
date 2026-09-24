@@ -56,8 +56,15 @@ class ClassController extends Controller
 
     public function index()
 {
-    // Ilagay ang iyong logic dito para kunin ang classes
-    return view('admin.classes'); // o anumang blade file na gusto mong ipakita
+    // Define ang mga grade levels na gagamitin sa dropdown
+    $grades = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'];
+
+    // Kunin ang listahan ng classes at teachers para sa admin page
+    $classes = SchoolClass::with('teacher')->get();
+    $teachers = User::where('role', 'teacher')->get();
+
+    // Ipasa ang $grades, $classes, at $teachers sa Blade view
+    return view('admin.classes', compact('grades', 'classes', 'teachers'));
 }
 
     public function assignStory(Request $request, $id)
