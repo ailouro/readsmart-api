@@ -79,6 +79,16 @@
             </label>
 
             <label>
+    Section
+    <select name="section" required>
+        <option value="" disabled {{ old('section') ? '' : 'selected' }}>Select section...</option>
+        @foreach ($sectionOptions as $sec)
+            <option value="{{ $sec }}" {{ old('section') === $sec ? 'selected' : '' }}>{{ $sec }}</option>
+        @endforeach
+    </select>
+</label>
+
+            <label>
                 Section
                 <select name="section" required>
                     <option value="" disabled {{ old('section') ? '' : 'selected' }}>Select section…</option>

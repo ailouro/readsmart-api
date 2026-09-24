@@ -60,9 +60,15 @@ class ClassController extends Controller
     $classes = SchoolClass::all();
     $teachers = User::where('role', 'teacher')->get();
 
-    $sectionOptions = Section::pluck('name')->toArray(); // or whatever your data source is
-    return view('admin.classes', compact('sectionOptions'));
+    $sectionOptions = SchoolClass::whereNotNull('section')
+    ->distinct()
+    ->pluck('section')
+    ->toArray();
+
+return view('admin.classes', compact('grades', 'classes', 'teachers', 'sectionOptions'));
 }
+
+
 
     public function assignStory(Request $request, $id)
     {
