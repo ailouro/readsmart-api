@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\User;
 
 class SchoolClass extends Model
 {
@@ -31,5 +32,12 @@ class SchoolClass extends Model
 public function students()
 {
     return $this->belongsToMany(User::class, 'class_student', 'class_id', 'student_id')->withTimestamps();
+}
+
+ // Siguraduhing naka-import ito sa taas kung hindi pa
+
+public function teacher()
+{
+    return $this->belongsTo(User::class, 'teacher_id');
 }
 }

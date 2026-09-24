@@ -57,7 +57,7 @@ class ClassController extends Controller
     public function index()
 {
     $grades = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'];
-    $classes = SchoolClass::with('teacher')->get();
+    $classes = SchoolClass::all();
     $teachers = User::where('role', 'teacher')->get();
 
     return view('admin.classes', compact('grades', 'classes', 'teachers'));
