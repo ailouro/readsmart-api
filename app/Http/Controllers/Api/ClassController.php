@@ -54,6 +54,12 @@ class ClassController extends Controller
         ], 200);
     }
 
+    public function index()
+{
+    // Ilagay ang iyong logic dito para kunin ang classes
+    return view('admin.classes'); // o anumang blade file na gusto mong ipakita
+}
+
     public function assignStory(Request $request, $id)
     {
         $validated = $request->validate([
