@@ -22,5 +22,7 @@ Route::post('/admin/users/{id}/reset-password', [AdminWebController::class, 'res
 Route::post('/admin/change-password', [AdminWebController::class, 'changeOwnPassword'])->name('admin.change-password');
 Route::post('/admin/students/{id}/reassign-teacher', [App\Http\Controllers\AdminWebController::class, 'reassignTeacher'])->name('admin.students.reassign-teacher');
 Route::get('/', fn () => response()->json(['status' => 'ok']));
-Route::get('/admin/classes', [ClassController::class, 'index'])->name('admin.classes.index');
-Route::post('/admin/classes', [App\Http\Controllers\Api\ClassController::class, 'store'])->name('admin.classes.store');
+Route::Route::get('/admin/classes', [AdminWebController::class, 'classes'])->name('admin.classes');
+Route::post('/admin/classes', [AdminWebController::class, 'storeClass'])->name('admin.classes.store');
+Route::post('/admin/classes/assign', [AdminWebController::class, 'assignStudentsToClass'])->name('admin.classes.assign');
+Route::post('/admin/classes/{classId}/students/{studentId}', [AdminWebController::class, 'removeStudentFromClass'])->name('admin.classes.remove-student');
