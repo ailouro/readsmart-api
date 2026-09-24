@@ -23,7 +23,7 @@ class AdminWebController extends Controller
     // the section names offered in the "Create class" dropdown. Add more
     // section names here if a grade ever needs more than two.
     private const CLASS_GRADES   = ['Grade 5', 'Grade 6'];
-    private const CLASS_SECTIONS = ['Section 1', 'Section 2'];
+    private const CLASS_SECTIONS = ['SATURN', 'MARS'];
 
  
     public function showLogin()
@@ -150,7 +150,7 @@ class AdminWebController extends Controller
             ->get()
             ->mapWithKeys(fn ($t) => [$t->id => $t->name ?: trim($t->first_name . ' ' . $t->last_name)]);
 
-        // $board['Grade 5']['Section 1'] = the class (or null if not created yet)
+        // $board['Grade 5']['SATURN'] = the class (or null if not created yet)
         $board = [];
         foreach (self::CLASS_GRADES as $grade) {
             $forGrade = $classes->where('grade_level', $grade);
@@ -280,8 +280,8 @@ class AdminWebController extends Controller
         $moved     = 0;
 
         DB::transaction(function () use ($class, $eligible, $ids, &$moved) {
-            // One section per student: adding to Section 2 moves them out
-            // of Section 1 of the same grade.
+            // One section per student: adding to MARS moves them out
+            // of SATURN of the same grade (and vice versa).
             $otherClasses = SchoolClass::where('grade_level', $class->grade_level)
                 ->where('id', '!=', $class->id)
                 ->get();
@@ -811,7 +811,7 @@ class AdminWebController extends Controller
         ];
     }
 
-    /** student user id => "Grade 5 · Section 1", for every graded class. */
+    /** student user id => "Grade 5 · SATURN", for every graded class. */
     private function classLabelsByStudent(): array
     {
         $labels  = [];
