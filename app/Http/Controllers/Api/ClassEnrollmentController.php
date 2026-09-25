@@ -207,7 +207,15 @@ public function getTeacherDashboardSummary($teacher_id)
 {
     // 1. Fetch classes using the PROVEN Eloquent relationship
     // and eager-load the students' progress and associated stories.
-    $classes = \App\Models\SchoolClass::where('teacher_id', $teacher_id)
+    // 🛠️ FIX: A class the user is only a CO-teacher on (teacher2_id) was
+    // never returned here, so co-teachers saw an empty dashboard even
+    // when the admin had assigned them to a class. Match either column.
+    // Wrapped in a closure so this doesn't accidentally OR itself into
+    // any later ->where() chained onto the query.
+    $classes = \App\Models\SchoolClass::where(function ($q) use ($teacher_id) {
+            $q->where('teacher_id', $teacher_id)
+              ->orWhere('teacher2_id', $teacher_id);
+        })
         ->with(['students' => function($query) {
             $query->with(['progress' => function($q) {
                 $q->orderBy('created_at', 'desc');
@@ -269,8 +277,14 @@ public function getTeacherDashboardSummary($teacher_id)
     // 📊 3. TEACHER: FETCH ALL CLASSES WITH ENROLLED STUDENTS
     public function getTeacherClasses($teacher_id)
     {
+        // 🛠️ FIX: same co-teacher gap as getTeacherDashboardSummary() —
+        // classes where this user is teacher2_id (co-teacher) were being
+        // left out of "Your Classes" entirely.
         $classes = SchoolClass::with('students')
-            ->where('teacher_id', $teacher_id)
+            ->where(function ($q) use ($teacher_id) {
+                $q->where('teacher_id', $teacher_id)
+                  ->orWhere('teacher2_id', $teacher_id);
+            })
             ->get();
 
         return response()->json($classes, 200);

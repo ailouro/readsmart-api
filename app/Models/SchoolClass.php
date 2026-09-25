@@ -20,6 +20,10 @@ class SchoolClass extends Model
         'grade_level',
         'class_code',
         'teacher_id',
+        'teacher2_id', // 🛠️ FIX: co-teacher column existed in the DB but was
+                       // missing here, so create()/update() mass assignment
+                       // silently dropped it — the co-teacher select in the
+                       // admin blade never actually persisted.
     ];
 
     public function stories()
@@ -39,5 +43,11 @@ public function students()
 public function teacher()
 {
     return $this->belongsTo(User::class, 'teacher_id');
+}
+
+// 🆕 Co-teacher relationship, mirrors teacher() but for teacher2_id.
+public function teacher2()
+{
+    return $this->belongsTo(User::class, 'teacher2_id');
 }
 }
