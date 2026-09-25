@@ -23,7 +23,12 @@ class AdminWebController extends Controller
     // the section names offered in the "Create class" dropdown. Add more
     // section names here if a grade ever needs more than two.
     private const CLASS_GRADES   = ['Grade 5', 'Grade 6'];
-    private const CLASS_SECTIONS = ['SATURN', 'MARS'];
+
+    // Section names are per grade: edit these lists if a grade's sections change.
+    private const CLASS_SECTIONS_BY_GRADE = [
+        'Grade 5' => ['MAGSAYSAY', 'AQUINO'],
+        'Grade 6' => ['SATURN', 'MARS'],
+    ];
 
  
     public function showLogin()
@@ -154,7 +159,7 @@ class AdminWebController extends Controller
         $board = [];
         foreach (self::CLASS_GRADES as $grade) {
             $forGrade = $classes->where('grade_level', $grade);
-            $sections = collect(self::CLASS_SECTIONS)
+            $sections = collect(self::CLASS_SECTIONS_BY_GRADE[$grade] ?? [])
                 ->merge($forGrade->pluck('section'))
                 ->filter()
                 ->unique()
@@ -176,7 +181,8 @@ class AdminWebController extends Controller
 
         return view('admin.classes', [
             'grades'          => self::CLASS_GRADES,
-            'sectionOptions'  => self::CLASS_SECTIONS,
+            'sectionOptionsByGrade' => self::CLASS_SECTIONS_BY_GRADE,
+            'sectionOptions'  => collect(self::CLASS_SECTIONS_BY_GRADE)->flatten()->unique()->values(), // Section filter dropdown: all sections across every grade
             'board'           => $board,
             'teacherNames'    => $teacherNames,
             'teachersByGrade' => $teachersByGrade,
@@ -192,11 +198,11 @@ class AdminWebController extends Controller
     {
         $data = $request->validate([
             'grade_level' => ['required', Rule::in(self::CLASS_GRADES)],
-            'section'     => ['required', Rule::in(self::CLASS_SECTIONS)],
+            'section'     => ['required', Rule::in(self::CLASS_SECTIONS_BY_GRADE[$request->input('grade_level')] ?? [])],
             'teacher_id'  => 'required|integer',
         ], [
             'grade_level.required' => 'Please choose a grade level.',
-            'section.required'     => 'Please choose a section.',
+            'section.required'     => 'Please choose a valid section for that grade.',
             'teacher_id.required'  => 'Please choose a teacher for this class.',
         ]);
 

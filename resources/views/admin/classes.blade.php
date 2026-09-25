@@ -79,14 +79,9 @@
             </label>
 
             <label>
-    Section
-    <select name="section" required>
-        <option value="" disabled {{ old('section') ? '' : 'selected' }}>Select section...</option>
-        @foreach ($sectionOptions as $sec)
-            <option value="{{ $sec }}" {{ old('section') === $sec ? 'selected' : '' }}>{{ $sec }}</option>
-        @endforeach
-    </select>
-</label>
+                Section
+                <select name="section" id="ccSection" required></select>
+            </label>
 
            
 
@@ -246,11 +241,35 @@
     // whose assigned grade matches the grade picked above.
     // ---------------------------------------------------------------
     const TEACHERS_BY_GRADE = @json($teachersByGrade);
+    const SECTIONS_BY_GRADE = @json($sectionOptionsByGrade);
     const OLD_TEACHER = @json(old('teacher_id'));
+    const OLD_SECTION = @json(old('section'));
 
     const ccGrade   = document.getElementById('ccGrade');
+    const ccSection = document.getElementById('ccSection');
     const ccTeacher = document.getElementById('ccTeacher');
     const ccHint    = document.getElementById('ccTeacherHint');
+
+    function fillSections() {
+        const grade = ccGrade.value;
+        const list  = (grade && SECTIONS_BY_GRADE[grade]) ? SECTIONS_BY_GRADE[grade] : [];
+
+        ccSection.innerHTML = '';
+        const first = document.createElement('option');
+        first.value = '';
+        first.disabled = true;
+        first.selected = true;
+        first.textContent = grade ? 'Select section…' : 'Pick a grade first…';
+        ccSection.appendChild(first);
+
+        list.forEach((sec) => {
+            const opt = document.createElement('option');
+            opt.value = sec;
+            opt.textContent = sec;
+            if (OLD_SECTION === sec) opt.selected = true;
+            ccSection.appendChild(opt);
+        });
+    }
 
     function fillTeachers() {
         const grade = ccGrade.value;
@@ -279,7 +298,8 @@
             ccHint.style.display = 'block';
         }
     }
-    ccGrade.addEventListener('change', fillTeachers);
+    ccGrade.addEventListener('change', () => { fillSections(); fillTeachers(); });
+    fillSections();
     fillTeachers();
 
     // ---------------------------------------------------------------

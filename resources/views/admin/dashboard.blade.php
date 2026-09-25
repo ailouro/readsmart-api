@@ -256,7 +256,7 @@
                     dependsOn: 'grade_level',
                     // Edit these lists if a grade gets different sections.
                     options: {
-                        'GRADE 5': ['SATURN', 'MARS'],
+                        'GRADE 5': ['MAGSAYSAY', 'AQUINO'],
                         'GRADE 6': ['SATURN', 'MARS'],
                     },
                 },
