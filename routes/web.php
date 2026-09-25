@@ -27,3 +27,4 @@ Route::get('/admin/classes', [AdminWebController::class, 'classes'])->name('admi
 Route::post('/admin/classes', [AdminWebController::class, 'storeClass'])->name('admin.classes.store');
 Route::post('/admin/classes/assign', [AdminWebController::class, 'assignStudentsToClass'])->name('admin.classes.assign');
 Route::post('/admin/classes/{classId}/students/{studentId}', [AdminWebController::class, 'removeStudentFromClass'])->name('admin.classes.remove-student');
+Route::post('/classes/{id}/co-teacher', [AdminWebController::class, 'setCoTeacher'])->name('admin.classes.co-teacher');
