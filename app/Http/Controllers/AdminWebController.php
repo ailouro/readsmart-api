@@ -151,7 +151,10 @@ class AdminWebController extends Controller
             ->whereIn('grade_level', self::CLASS_GRADES)
             ->get();
 
-        $teacherNames = User::whereIn('id', $classes->pluck('teacher_id')->filter()->unique())
+        $teacherNames = User::whereIn('id', $classes->pluck('teacher_id')
+                ->merge($classes->pluck('teacher2_id'))
+                ->filter()
+                ->unique())
             ->get()
             ->mapWithKeys(fn ($t) => [$t->id => $t->name ?: trim($t->first_name . ' ' . $t->last_name)]);
 
@@ -255,6 +258,59 @@ class AdminWebController extends Controller
             'success',
             "{$data['grade_level']} — {$data['section']} created with {$teacher->name} as the teacher."
         );
+    }
+
+    // -----------------------------------------------------------------
+    // CO-TEACHER — a second, optional teacher on an existing class. Both
+    // the main teacher and the co-teacher must already be approved for
+    // that class's grade level (this only sets who is *listed* on the
+    // class; whether the co-teacher can actually manage the class's
+    // students in the app depends on the API also checking teacher2_id
+    // wherever it currently checks teacher_id).
+    // -----------------------------------------------------------------
+    public function setCoTeacher(Request $request, $id)
+    {
+        $class = SchoolClass::findOrFail($id);
+
+        $data = $request->validate([
+            'teacher2_id' => 'nullable|integer',
+        ]);
+
+        if (empty($data['teacher2_id'])) {
+            $class->teacher2_id = null;
+            $class->save();
+
+            return back()->with('success', "Co-teacher removed from {$class->grade_level} — {$class->section}.");
+        }
+
+        if ((int) $data['teacher2_id'] === (int) $class->teacher_id) {
+            return back()->withErrors([
+                'teacher2_id' => 'The co-teacher must be different from the main teacher.',
+            ]);
+        }
+
+        $teacher2 = User::where('id', $data['teacher2_id'])
+            ->where('role', 'teacher')
+            ->whereNotNull('email_verified_at')
+            ->first();
+
+        if (!$teacher2) {
+            return back()->withErrors([
+                'teacher2_id' => 'That teacher account is not approved or does not exist.',
+            ]);
+        }
+
+        if ($teacher2->grade_level !== $class->grade_level) {
+            return back()->withErrors([
+                'teacher2_id' => "{$teacher2->name} is assigned to " . ($teacher2->grade_level ?: 'no grade')
+                    . ", so they can't co-teach a {$class->grade_level} class.",
+            ]);
+        }
+
+        $class->teacher2_id = $teacher2->id;
+        $class->save();
+
+        return back()->with('success', "{$teacher2->name} added as co-teacher for {$class->grade_level} — {$class->section}.");
     }
 
     public function assignStudentsToClass(Request $request)

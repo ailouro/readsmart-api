@@ -114,8 +114,24 @@
                             @if ($class)
                                 <div class="col-sub">
                                     Teacher: {{ $teacherNames[$class->teacher_id] ?? '—' }}
+                                    @if ($class->teacher2_id)
+                                        &middot; Co-teacher: {{ $teacherNames[$class->teacher2_id] ?? '—' }}
+                                    @endif
                                     &middot; {{ $class->students->count() }} {{ $class->students->count() === 1 ? 'student' : 'students' }}
                                 </div>
+
+                                <form method="POST" action="{{ route('admin.classes.co-teacher', $class->id) }}"
+                                      style="display:flex; gap:6px; margin-bottom:10px;">
+                                    @csrf
+                                    <select name="teacher2_id" style="flex:1; font-size:12.5px; padding:4px 6px; border-radius:6px; border:1px solid #cbd5e1;">
+                                        <option value="">{{ $class->teacher2_id ? 'Remove co-teacher' : 'Add co-teacher…' }}</option>
+                                        @foreach (($teachersByGrade[$grade] ?? []) as $t)
+                                            @continue($t['id'] == $class->teacher_id)
+                                            <option value="{{ $t['id'] }}" {{ $class->teacher2_id == $t['id'] ? 'selected' : '' }}>{{ $t['name'] }}</option>
+                                        @endforeach
+                                    </select>
+                                    <button type="submit" class="btn btn-sm">Save</button>
+                                </form>
                                 <ul class="stu-list">
                                     @forelse ($class->students->sortBy('last_name') as $st)
                                         <li>
