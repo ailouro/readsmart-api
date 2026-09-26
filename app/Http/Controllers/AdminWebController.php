@@ -803,8 +803,125 @@ class AdminWebController extends Controller
     }
 
     // -----------------------------------------------------------------
-    // TEACHERS — approve / revoke (teachers still self-register)
+    // TEACHERS — admin can create accounts directly here too now, in
+    // addition to teachers self-registering through the app (that flow,
+    // and the approve/revoke methods below, are unchanged: a
+    // self-registered teacher still lands in this same table, just
+    // pending until an admin picks a grade level and approves them).
     // -----------------------------------------------------------------
+
+    public function bulkCreateTeachers(Request $request)
+    {
+        $request->validate([
+            'rows'   => 'required|array|min:1',
+            'rows.*' => 'array',
+        ]);
+
+        $created = [];
+        $errors  = [];
+        $seenEmails = [];
+
+        foreach ($request->input('rows') as $i => $row) {
+            $rowNum = $i + 1;
+
+            $firstName     = trim((string) ($row['first_name']     ?? ''));
+            $lastName      = trim((string) ($row['last_name']      ?? ''));
+            $email         = trim((string) ($row['email']          ?? ''));
+            $gradeLevel    = trim((string) ($row['grade_level']    ?? ''));
+            $contactNumber = trim((string) ($row['contact_number'] ?? ''));
+
+            // Skip fully blank rows without complaint — those are just
+            // unused rows left over in the grid, not a mistake.
+            if ($firstName === '' && $lastName === '' && $email === '' && $gradeLevel === '') {
+                continue;
+            }
+
+            $missing = [];
+            if ($firstName === '')  $missing[] = 'First Name';
+            if ($lastName === '')   $missing[] = 'Last Name';
+            if ($email === '')      $missing[] = 'Email';
+            if ($gradeLevel === '') $missing[] = 'Grade Level';
+
+            if (!empty($missing)) {
+                $errors[] = "Row {$rowNum}: missing " . implode(', ', $missing) . '.';
+                continue;
+            }
+
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $errors[] = "Row {$rowNum}: '{$email}' is not a valid email — skipped.";
+                continue;
+            }
+
+            if (!in_array($gradeLevel, ['Grade 5', 'Grade 6'], true)) {
+                $errors[] = "Row {$rowNum}: grade level must be Grade 5 or Grade 6 — skipped.";
+                continue;
+            }
+
+            if ($contactNumber !== '' && !preg_match('/^[0-9+\-\s()]*$/', $contactNumber)) {
+                $errors[] = "Row {$rowNum}: contact number can only contain digits, spaces, +, -, and parentheses — skipped.";
+                continue;
+            }
+
+            if (isset($seenEmails[$email])) {
+                $errors[] = "Row {$rowNum}: {$email} is duplicated within this batch (also on row {$seenEmails[$email]}) — skipped.";
+                continue;
+            }
+
+            if (User::where('email', $email)->exists()) {
+                $errors[] = "Row {$rowNum}: {$email} is already registered — skipped.";
+                continue;
+            }
+
+            $seenEmails[$email] = $rowNum;
+            $plainPassword = $this->generatePassword();
+
+            try {
+                DB::transaction(function () use (
+                    $firstName, $lastName, $email, $plainPassword, $gradeLevel, $contactNumber
+                ) {
+                    $teacher = User::create([
+                        'first_name' => $firstName,
+                        'last_name'  => $lastName,
+                        'name'       => trim("{$firstName} {$lastName}"),
+                        'email'      => $email,
+                        'role'       => 'teacher',
+                        'password'   => Hash::make($plainPassword),
+                    ]);
+
+                    // Direct assignment (not mass-assignment), same reason as
+                    // elsewhere in this file: works even if these columns
+                    // aren't in User's $fillable array.
+                    $teacher->grade_level = $gradeLevel;
+                    $teacher->contact_number = $contactNumber !== '' ? $contactNumber : null;
+                    // Admin-created accounts are pre-approved, same as bulk
+                    // students/parents — AuthController blocks teacher
+                    // logins without email_verified_at.
+                    $teacher->email_verified_at = now();
+                    $teacher->save();
+                });
+
+                $created[] = [
+                    'type'        => 'teacher',
+                    'name'        => trim("{$firstName} {$lastName}"),
+                    'login'       => $email,
+                    'login_label' => 'Email',
+                    'password'    => $plainPassword,
+                    'grade_level' => $gradeLevel,
+                ];
+            } catch (\Exception $e) {
+                $errors[] = "Row {$rowNum}: failed to create {$email} — " . $e->getMessage();
+            }
+        }
+
+        if (empty($created) && empty($errors)) {
+            $errors[] = 'No rows had any data — nothing was submitted.';
+        }
+
+        return redirect()
+            ->route('admin.credentials')
+            ->with('credentials', $created)
+            ->with('credential_errors', $errors);
+    }
 
     // Approves a teacher AND assigns the grade level they will handle.
     // Also used on already-approved teachers to change their grade level

@@ -87,6 +87,8 @@
                     <div class="meta">
                         @if ($c['type'] === 'student')
                             {{ $c['grade_level'] }} &middot; {{ $c['section'] }}
+                        @elseif ($c['type'] === 'teacher')
+                            {{ $c['grade_level'] }} teacher
                         @else
                             Parent of {{ $c['child_name'] ?: $c['child_lrn'] }}
                         @endif
