@@ -2,7 +2,8 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AdminWebController;
-use App\Http\Controllers\Api\ClassController;   
+use App\Http\Controllers\Api\ClassController;  
+use App\Http\Controllers\Api\ParentController; 
 
 // Your login/logout routes
 Route::get('/admin/login', [AdminWebController::class, 'showLogin'])->name('admin.login');
@@ -18,7 +19,9 @@ Route::post('/admin/parents/bulk', [AdminWebController::class, 'bulkCreateParent
 Route::post('/admin/teachers/{id}/approve', [AdminWebController::class, 'approveTeacher'])->name('admin.teachers.approve');
 Route::post('/admin/teachers/{id}/revoke', [AdminWebController::class, 'revokeTeacher'])->name('admin.teachers.revoke');
 
-
+Route::middleware(['auth'])->group(function () {
+Route::get('/parent/dashboard', [ParentController::class, 'dashboard'])->name('parent.dashboard');
+});
 Route::post('/admin/users/{id}/reset-password', [AdminWebController::class, 'resetPassword'])->name('admin.users.reset-password');
 Route::post('/admin/change-password', [AdminWebController::class, 'changeOwnPassword'])->name('admin.change-password');
 Route::post('/admin/students/{id}/reassign-teacher', [App\Http\Controllers\AdminWebController::class, 'reassignTeacher'])->name('admin.students.reassign-teacher');

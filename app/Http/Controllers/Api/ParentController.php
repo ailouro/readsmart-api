@@ -15,6 +15,10 @@ class ParentController extends Controller
     {
         $parent = User::find($parentId);
         $notifications = [];
+        $student = Student::where('parent_id', auth()->id())->first();
+        $class = SchoolClass::with('teacher')->where('id', $student->class_id)->first();
+
+        return view('parent.dashboard', compact('student', 'class'));
 
         if ($parent) {
             // Approved student-account requests this parent hasn't seen a

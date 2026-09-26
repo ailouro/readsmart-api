@@ -187,13 +187,14 @@
                 </div>
                 <table id="teachersTable">
                     <thead>
-                        <tr><th>Name</th><th>Email</th><th>Grade level</th><th>Registered</th><th>Status</th><th>Action</th></tr>
+                        <tr><th>Name</th><th>Email</th><th>Contact #</th><th>Grade level</th><th>Registered</th><th>Status</th><th>Action</th></tr>
                     </thead>
                     <tbody>
                         @forelse ($teachers as $t)
                             <tr>
                                 <td>{{ $t->name }}</td>
                                 <td>{{ $t->email }}</td>
+                                <td>{{ $t->contact_number ?: 'Not provided' }}</td>
                                 <td>
                                     <select name="grade_level" form="approve-teacher-{{ $t->id }}" required
                                             style="padding: 5px 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px;">
