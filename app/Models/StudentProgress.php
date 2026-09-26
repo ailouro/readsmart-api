@@ -35,6 +35,18 @@ class StudentProgress extends Model
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * Alias of user(). AnalyticsController queries this relation as
+     * `student.classes` (e.g. whereHas('student.classes', ...)) to find the
+     * classes/sections a learner belongs to, but that relation name didn't
+     * exist on this model, so those queries were failing. Fixed by adding
+     * `student` as an alias for the same user_id foreign key.
+     */
+    public function student()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
     public function story()
     {
         return $this->belongsTo(Story::class, 'story_id');

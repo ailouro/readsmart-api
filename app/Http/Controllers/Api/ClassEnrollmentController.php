@@ -561,4 +561,4 @@ public function saveProgress(Request $request)
             'message' => count($request->student_ids) . ' student(s) added to class.',
         ], 200);
     }
-}
+}   

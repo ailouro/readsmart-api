@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\StudentProgress; 
 use App\Models\Mispronunciation; 
+use App\Models\User;
 
 class AnalyticsController extends Controller
 {
@@ -15,29 +16,98 @@ class AnalyticsController extends Controller
     public function dashboardSummary($teacherId)
     {
         try {
-            // Uses the actual 'reading_level' column from your migration
-            $frustration = StudentProgress::whereHas('student.classes', function ($query) use ($teacherId) {
+            // Every reading attempt for students in any of this teacher's
+            // classes that already has a Phil-IRI reading_level computed.
+            // (Interim/in-progress rows have reading_level = null and are
+            // correctly excluded, same as before.)
+            $progress = StudentProgress::with(['student.classes' => function ($query) use ($teacherId) {
+                    $query->where('teacher_id', $teacherId);
+                }])
+                ->whereHas('student.classes', function ($query) use ($teacherId) {
                     $query->where('teacher_id', $teacherId);
                 })
-                ->where('reading_level', 'frustration')
-                ->count();
+                ->whereNotNull('reading_level')
+                ->get();
 
-            $instructional = StudentProgress::whereHas('student.classes', function ($query) use ($teacherId) {
-                    $query->where('teacher_id', $teacherId);
-                })
-                ->where('reading_level', 'instructional')
-                ->count();
+            $frustration = 0;
+            $instructional = 0;
+            $independent = 0;
 
-            $independent = StudentProgress::whereHas('student.classes', function ($query) use ($teacherId) {
+            // Per class + section breakdown (e.g. "Grade 5 - Magsaysay"), so
+            // the dashboard chart can show exactly where each count comes
+            // from, and hovering/tapping a bar can name the class/section.
+            $classBreakdown = [];
+
+            foreach ($progress as $row) {
+                if (in_array($row->reading_level, ['frustration', 'instructional', 'independent'], true)) {
+                    switch ($row->reading_level) {
+                        case 'frustration':
+                            $frustration++;
+                            break;
+                        case 'instructional':
+                            $instructional++;
+                            break;
+                        case 'independent':
+                            $independent++;
+                            break;
+                    }
+                }
+
+                if (!$row->student) {
+                    continue;
+                }
+
+                foreach ($row->student->classes as $class) {
+                    $key = $class->id;
+                    if (!isset($classBreakdown[$key])) {
+                        $classBreakdown[$key] = [
+                            'class_id' => $class->id,
+                            'grade_level' => $class->grade_level,
+                            'section' => $class->section,
+                            'label' => trim('Grade ' . $class->grade_level . ' - ' . $class->section, ' -'),
+                            'frustration' => 0,
+                            'instructional' => 0,
+                            'independent' => 0,
+                            'total' => 0,
+                        ];
+                    }
+                    if (in_array($row->reading_level, ['frustration', 'instructional', 'independent'], true)) {
+                        $classBreakdown[$key][$row->reading_level]++;
+                        $classBreakdown[$key]['total']++;
+                    }
+                }
+            }
+
+            // Roster for the "Learner's Individual Record Card" / "Learners'
+            // Records" sections further down both dashboards. This endpoint
+            // never returned a 'students' key before, which is why those
+            // sections always showed "No students enrolled yet." even when
+            // the teacher had classes full of students.
+            $students = User::whereHas('classes', function ($query) use ($teacherId) {
                     $query->where('teacher_id', $teacherId);
                 })
-                ->where('reading_level', 'independent')
-                ->count();
+                ->with(['classes' => function ($query) use ($teacherId) {
+                    $query->where('teacher_id', $teacherId);
+                }])
+                ->get()
+                ->map(function ($student) {
+                    $class = $student->classes->first();
+                    return [
+                        'id' => $student->id,
+                        'name' => $student->name,
+                        'lrn' => $student->lrn ?? null,
+                        'grade_level' => $student->grade_level ?? optional($class)->grade_level,
+                        'section' => $student->section ?? optional($class)->section,
+                    ];
+                })
+                ->values();
 
             return response()->json([
                 'frustration_count' => $frustration,
                 'instructional_count' => $instructional,
                 'independent_count' => $independent,
+                'class_breakdown' => array_values($classBreakdown),
+                'students' => $students,
             ], 200);
 
         } catch (\Exception $e) {
