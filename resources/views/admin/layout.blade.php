@@ -50,6 +50,15 @@
         .pill-ok { background: #dcfce7; color: #15803d; }
         .pill-wait { background: #fef3c7; color: #b45309; }
         .flash { background: #dcfce7; border: 1px solid #86efac; color: #15803d; padding: 11px 14px; border-radius: 8px; margin-bottom: 18px; font-size: 14px; }
+
+        .search-box { position: relative; max-width: 320px; margin-bottom: 12px; }
+        .search-box input {
+            width: 100%; padding: 9px 12px 9px 34px; border: 1px solid #cbd5e1; border-radius: 8px;
+            font-size: 14px; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E") no-repeat 10px center;
+            background-size: 15px 15px;
+        }
+        .search-box input:focus { outline: 2px solid #2563eb; outline-offset: -1px; }
+        .search-empty { text-align: center; color: #94a3b8; padding: 20px; }
         code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
 
         .grid-wrap { overflow-x: auto; border: 1px solid #94a3b8; border-radius: 8px; max-height: 420px; overflow-y: auto; }

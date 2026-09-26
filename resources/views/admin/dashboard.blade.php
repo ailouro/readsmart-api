@@ -54,7 +54,11 @@
                     <span id="reprintCount" style="font-size:13px; color:#64748b;">0 selected</span>
                 </div>
 
-                <table>
+                <div class="search-box">
+                    <input type="text" id="studentSearch" placeholder="Search by name, LRN, grade, section…">
+                </div>
+
+                <table id="studentsTable">
                     <thead>
                         <tr>
                             <th style="width:36px;"><input type="checkbox" id="checkAllStudents" title="Select all"></th>
@@ -134,7 +138,10 @@
 
             <div class="panel">
                 <h2>Existing parents</h2>
-                <table>
+                <div class="search-box">
+                    <input type="text" id="parentSearch" placeholder="Search by name, email, child…">
+                </div>
+                <table id="parentsTable">
                     <thead>
                         <tr><th>Name</th><th>Email</th><th>Children</th><th>Reset password</th></tr>
                     </thead>
@@ -175,7 +182,10 @@
                     Teachers register themselves through the app. Choose the grade level a teacher will handle,
                     then approve the account so they can sign in. You can change the grade level of an approved teacher later with "Save grade".
                 </p>
-                <table>
+                <div class="search-box">
+                    <input type="text" id="teacherSearch" placeholder="Search by name, email, grade…">
+                </div>
+                <table id="teachersTable">
                     <thead>
                         <tr><th>Name</th><th>Email</th><th>Grade level</th><th>Registered</th><th>Status</th><th>Action</th></tr>
                     </thead>
@@ -524,27 +534,76 @@
             });
         }
 
+        // ---------------------------------------------------------------
+        // Search box above each "existing accounts" table. Pure client-side
+        // substring match against the row's whole text (name, LRN, email,
+        // grade, section, etc. all searchable at once) — these lists are
+        // small enough that there's no need to round-trip to the server.
+        // ---------------------------------------------------------------
+        function wireTableSearch(inputId, tableId, emptyColspan) {
+            const input = document.getElementById(inputId);
+            const table = document.getElementById(tableId);
+            if (!input || !table) return;
+
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'))
+                .filter((tr) => !tr.querySelector('.empty'));
+            if (!rows.length) return; // table already shows "no accounts yet"
+
+            const noMatchRow = document.createElement('tr');
+            const noMatchCell = document.createElement('td');
+            noMatchCell.className = 'search-empty';
+            noMatchCell.colSpan = emptyColspan;
+            noMatchRow.appendChild(noMatchCell);
+
+            input.addEventListener('input', () => {
+                const q = input.value.trim().toLowerCase();
+                let visible = 0;
+                rows.forEach((tr) => {
+                    const match = !q || tr.textContent.toLowerCase().includes(q);
+                    tr.style.display = match ? '' : 'none';
+                    if (match) visible++;
+                });
+
+                if (visible === 0 && q) {
+                    noMatchCell.textContent = `No matches for "${input.value.trim()}".`;
+                    if (!noMatchRow.isConnected) tbody.appendChild(noMatchRow);
+                } else if (noMatchRow.isConnected) {
+                    noMatchRow.remove();
+                }
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             if (document.getElementById('studentGrid')) initGrid('studentGrid', 5);
             if (document.getElementById('parentGrid')) initGrid('parentGrid', 5);
 
+            wireTableSearch('studentSearch', 'studentsTable', 8);
+            wireTableSearch('parentSearch', 'parentsTable', 4);
+            wireTableSearch('teacherSearch', 'teachersTable', 6);
+
             // "Reset & print slips": select-all + selected counter
             const checkAll = document.getElementById('checkAllStudents');
             if (checkAll) {
-                const boxes = () => Array.from(document.querySelectorAll('.student-check'));
+                const allBoxes = () => Array.from(document.querySelectorAll('.student-check'));
+                // Only rows the search box is currently showing -- so "select
+                // all" and the counter can't silently grab/count students
+                // that a search has filtered out of view.
+                const visibleBoxes = () => allBoxes().filter((b) => b.closest('tr').style.display !== 'none');
                 const counter = document.getElementById('reprintCount');
                 const refresh = () => {
-                    const all = boxes();
-                    const n = all.filter((b) => b.checked).length;
+                    const visible = visibleBoxes();
+                    const n = allBoxes().filter((b) => b.checked).length;
                     counter.textContent = n + ' selected';
-                    checkAll.checked = all.length > 0 && n === all.length;
-                    checkAll.indeterminate = n > 0 && n < all.length;
+                    checkAll.checked = visible.length > 0 && visible.every((b) => b.checked);
+                    checkAll.indeterminate = !checkAll.checked && visible.some((b) => b.checked);
                 };
                 checkAll.addEventListener('change', () => {
-                    boxes().forEach((b) => { b.checked = checkAll.checked; });
+                    visibleBoxes().forEach((b) => { b.checked = checkAll.checked; });
                     refresh();
                 });
-                boxes().forEach((b) => b.addEventListener('change', refresh));
+                allBoxes().forEach((b) => b.addEventListener('change', refresh));
+                document.getElementById('studentSearch')?.addEventListener('input', refresh);
                 refresh();
             }
         });
