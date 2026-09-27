@@ -27,8 +27,31 @@ class StudentProgress extends Model
     'comprehension_score_pct',
     'word_reading_score_pct',
     'reading_profile',
-    'struggled_words', // <- Add this
+    'struggled_words',
+    'started_at',    
+    'completed_at'
 ];
+
+    protected static function boot()
+{
+    parent::boot();
+
+    // Auto-stamp start time on first creation of a progress row
+    static::creating(function ($progress) {
+        if (!$progress->started_at) {
+            $progress->started_at = now();
+        }
+    });
+
+    // Auto-stamp completion time the moment is_reading_completed flips to true
+    static::saving(function ($progress) {
+        if ($progress->isDirty('is_reading_completed')
+            && $progress->is_reading_completed
+            && !$progress->completed_at) {
+            $progress->completed_at = now();
+        }
+    });
+}
 
     public function user()
     {
@@ -65,25 +88,26 @@ class StudentProgress extends Model
      * The story's own `id` is preserved; the progress fields are merged on top.
      */
     public static function completedStoriesFor($userId)
-    {
-        return static::query()
-            ->where('user_id', $userId)
-            ->where('is_reading_completed', true)
-            ->whereHas('story')
-            ->with(['story.pages', 'story.quiz'])
-            ->orderByDesc('updated_at')
-            ->orderByDesc('id')
-            ->get()
-            ->unique('story_id')
-            ->map(function ($p) {
-                return array_merge($p->story->toArray(), [
-                    'quiz_score'      => $p->quiz_score,
-                    'total_questions' => $p->total_questions,
-                    'reading_level'   => $p->reading_level,
-                    'test_type'       => $p->test_type,
-                    'date_completed'  => $p->updated_at,
-                ]);
-            })
-            ->values();
-    }
+{
+    return static::query()
+        ->where('user_id', $userId)
+        ->where('is_reading_completed', true)
+        ->whereHas('story')
+        ->with(['story.pages', 'story.quiz'])
+        ->orderByDesc('updated_at')
+        ->orderByDesc('id')
+        ->get()
+        ->unique('story_id')
+        ->map(function ($p) {
+            return array_merge($p->story->toArray(), [
+                'quiz_score'      => $p->quiz_score,
+                'total_questions' => $p->total_questions,
+                'reading_level'   => $p->reading_level,
+                'test_type'       => $p->test_type,
+                'date_completed'  => $p->completed_at ?? $p->updated_at, // <- palitan dati: $p->updated_at,
+                'started_at'      => $p->started_at, // <- bagong idinagdag
+            ]);
+        })
+        ->values();
+}
 }
