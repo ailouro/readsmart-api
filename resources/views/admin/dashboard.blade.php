@@ -177,38 +177,9 @@
         {{-- ================= TEACHERS ================= --}}
         @if ($tab === 'teachers')
             <div class="panel">
-                <h2>Create teacher accounts</h2>
-                <p class="hint">
-                    For teachers who won't register themselves through the app — fill in each row, or paste a
-                    block copied from a spreadsheet. These accounts are approved immediately and can sign in right away.<br>
-                    Teachers log in using their <strong>email</strong>. Passwords are generated automatically and shown once on the printout.
-                </p>
-                <form method="POST" action="{{ route('admin.teachers.bulk') }}">
-                    @csrf
-                    <div class="grid-wrap">
-                        <table class="grid" id="teacherGrid" data-columns="first_name,last_name,email,grade_level,contact_number">
-                            <thead>
-                                <tr>
-                                    <th>First Name</th>
-                                    <th>Last Name</th>
-                                    <th>Email</th>
-                                    <th>Grade Level</th>
-                                    <th>Contact Number</th>
-                                    <th class="col-remove"></th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-                    <button type="button" class="btn btn-add" onclick="addGridRow('teacherGrid')">+ Add row</button>
-                    <button type="submit" class="btn">Create accounts &amp; print slips</button>
-                </form>
-            </div>
-
-            <div class="panel">
                 <h2>Teacher accounts</h2>
                 <p class="hint">
-                    Teachers can also register themselves through the app. Choose the grade level a teacher will handle,
+                    Teachers register themselves through the app. Choose the grade level a teacher will handle,
                     then approve the account so they can sign in. You can change the grade level of an approved teacher later with "Save grade".
                 </p>
                 <div class="search-box">
@@ -261,7 +232,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="7" class="empty">No teacher accounts yet.</td></tr>
+                            <tr><td colspan="6" class="empty">No teacher accounts yet.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -299,15 +270,6 @@
                         'GRADE 5': ['MAGSAYSAY', 'AQUINO'],
                         'GRADE 6': ['SATURN', 'MARS'],
                     },
-                },
-            },
-            teacherGrid: {
-                grade_level: {
-                    placeholder: 'Select grade',
-                    // Title-case here (not 'GRADE 5') to match what
-                    // approveTeacher()/bulkCreateTeachers() expect for a
-                    // teacher's grade_level ('Grade 5' / 'Grade 6').
-                    options: ['Grade 5', 'Grade 6'],
                 },
             },
         };
@@ -616,11 +578,10 @@
         document.addEventListener('DOMContentLoaded', () => {
             if (document.getElementById('studentGrid')) initGrid('studentGrid', 5);
             if (document.getElementById('parentGrid')) initGrid('parentGrid', 5);
-            if (document.getElementById('teacherGrid')) initGrid('teacherGrid', 5);
 
             wireTableSearch('studentSearch', 'studentsTable', 8);
             wireTableSearch('parentSearch', 'parentsTable', 4);
-            wireTableSearch('teacherSearch', 'teachersTable', 7);
+            wireTableSearch('teacherSearch', 'teachersTable', 6);
 
             // "Reset & print slips": select-all + selected counter
             const checkAll = document.getElementById('checkAllStudents');
