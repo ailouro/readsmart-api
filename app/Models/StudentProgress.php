@@ -17,6 +17,7 @@ class StudentProgress extends Model
     'test_type',
     'quiz_score',
     'total_questions',
+    'total_slides',
     'oral_fluency_accuracy',
     'reading_level',
     'time_on_task',
@@ -109,5 +110,33 @@ class StudentProgress extends Model
             ]);
         })
         ->values();
+}
+
+public function checkpoint(Request $r)
+{
+    $d = $r->validate([
+        'user_id' => 'required|integer',
+        'story_id' => 'required|integer',
+        'test_type' => 'required|string',
+        'current_slide' => 'required|integer|min:0',
+        'total_slides' => 'required|integer|min:1',
+    ]);
+
+    $p = StudentProgress::firstOrNew([
+        'user_id' => $d['user_id'],
+        'story_id' => $d['story_id'],
+        'test_type' => $d['test_type'],
+    ]);
+
+    if ($p->is_reading_completed) {
+        return response()->json(['skipped' => true]);
+    }
+
+    $p->current_slide = $d['current_slide'];
+    $p->total_slides = $d['total_slides'];
+    $p->status = 'in_progress';
+    $p->save();
+
+    return response()->json(['success' => true]);
 }
 }
