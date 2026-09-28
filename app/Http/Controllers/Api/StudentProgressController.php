@@ -8,8 +8,9 @@ use App\Models\StudentProgress;
 use App\Models\SelfCorrection;
 use App\Services\PhilIriService;
 use Illuminate\Http\Request;
+use App\Models\SchoolClass;
 
-class StudentPogressController extends Controller
+class StudentProgressController extends Controller
 {
     protected PhilIriService $philIriService;
 
@@ -84,26 +85,26 @@ class StudentPogressController extends Controller
     public function checkpoint(Request $r)
 {
     $d = $r->validate([
-        'user_id' => 'required|integer',
-        'story_id' => 'required|integer',
-        'test_type' => 'required|string',
+        'user_id'       => 'required|integer',
+        'story_id'      => 'required|integer',
+        'test_type'     => 'required|string',
         'current_slide' => 'required|integer|min:0',
-        'total_slides' => 'required|integer|min:1',
+        'total_slides'  => 'required|integer|min:1',
     ]);
 
     $p = StudentProgress::firstOrNew([
-        'user_id' => $d['user_id'],
+        'user_id'  => $d['user_id'],
         'story_id' => $d['story_id'],
-        'test_type' => $d['test_type'],
     ]);
 
     if ($p->is_reading_completed) {
         return response()->json(['skipped' => true]);
     }
 
+    $p->test_type     = $d['test_type'];
     $p->current_slide = $d['current_slide'];
-    $p->total_slides = $d['total_slides'];
-    $p->status = 'in_progress';
+    $p->total_slides  = $d['total_slides'];
+    $p->status        = 'in_progress';
     $p->save();
 
     return response()->json(['success' => true]);
@@ -116,17 +117,20 @@ public function readingProgress($class_id)
 
     $rows = StudentProgress::whereIn('user_id', $class->students->pluck('id'))
         ->where('is_reading_completed', false)
-        ->whereNotNull('current_slide')
+        ->where('status', 'in_progress')
+        ->whereNotNull('total_slides')
         ->with('story:id,title')
         ->orderByDesc('updated_at')
         ->get()
         ->map(function ($p) use ($class) {
             $total = max((int) $p->total_slides, 1);
-            $slide = (int) $p->current_slide + 1; // 0-based -> 1-based
+            $slide = (int) $p->current_slide + 1;
             $stu   = $class->students->firstWhere('id', $p->user_id);
             return [
                 'student_id'    => $p->user_id,
-                'student_name'  => $stu->name ?? 'Student',
+                'student_name'  => $stu->name
+                    ?? trim(($stu->first_name ?? '') . ' ' . ($stu->last_name ?? ''))
+                    ?: 'Student',
                 'story_id'      => $p->story_id,
                 'story_title'   => $p->story->title ?? 'Story',
                 'test_type'     => $p->test_type,

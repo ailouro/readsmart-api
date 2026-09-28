@@ -89,6 +89,7 @@ Route::get('/test', function () {
     return response()->json([
         'message' => 'Laravel API Connected Successfully'
     ]);
+    Route::get('/classes/{id}/reading-progress', [StudentProgressController::class, 'readingProgress']);
 });
 
 Route::get('/get-image', function (\Illuminate\Http\Request $request) {
