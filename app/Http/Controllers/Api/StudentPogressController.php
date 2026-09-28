@@ -7,8 +7,9 @@ use App\Http\Requests\SaveProgressRequest;
 use App\Models\StudentProgress;
 use App\Models\SelfCorrection;
 use App\Services\PhilIriService;
+use Illuminate\Http\Request;
 
-class StudentProgressController extends Controller
+class StudentPogressController extends Controller
 {
     protected PhilIriService $philIriService;
 
@@ -17,15 +18,7 @@ class StudentProgressController extends Controller
         $this->philIriService = $philIriService;
     }
 
-    /**
-     * "Aking Silid-Aklatan" -- every story this student has finished.
-     *
-     * BUG FIXED: this method used `Story::` but the controller never imported
-     * App\Models\Story, so PHP looked for App\Http\Controllers\Api\Story and
-     * threw a "Class not found" *Error*. `catch (\Exception)` does not catch
-     * Errors, so the app got a 500, and the dashboard silently ignored it and
-     * kept showing an empty library.
-     */
+   
     public function getCompletedStories($studentId)
     {
         try {
@@ -88,4 +81,62 @@ class StudentProgressController extends Controller
             'data' => $progress
         ], 201);
     }
+    public function checkpoint(Request $r)
+{
+    $d = $r->validate([
+        'user_id' => 'required|integer',
+        'story_id' => 'required|integer',
+        'test_type' => 'required|string',
+        'current_slide' => 'required|integer|min:0',
+        'total_slides' => 'required|integer|min:1',
+    ]);
+
+    $p = StudentProgress::firstOrNew([
+        'user_id' => $d['user_id'],
+        'story_id' => $d['story_id'],
+        'test_type' => $d['test_type'],
+    ]);
+
+    if ($p->is_reading_completed) {
+        return response()->json(['skipped' => true]);
+    }
+
+    $p->current_slide = $d['current_slide'];
+    $p->total_slides = $d['total_slides'];
+    $p->status = 'in_progress';
+    $p->save();
+
+    return response()->json(['success' => true]);
+}
+
+public function readingProgress($class_id)
+{
+    $class = SchoolClass::with('students')->find($class_id);
+    if (!$class) return response()->json(['data' => []], 404);
+
+    $rows = StudentProgress::whereIn('user_id', $class->students->pluck('id'))
+        ->where('is_reading_completed', false)
+        ->whereNotNull('current_slide')
+        ->with('story:id,title')
+        ->orderByDesc('updated_at')
+        ->get()
+        ->map(function ($p) use ($class) {
+            $total = max((int) $p->total_slides, 1);
+            $slide = (int) $p->current_slide + 1; // 0-based -> 1-based
+            $stu   = $class->students->firstWhere('id', $p->user_id);
+            return [
+                'student_id'    => $p->user_id,
+                'student_name'  => $stu->name ?? 'Student',
+                'story_id'      => $p->story_id,
+                'story_title'   => $p->story->title ?? 'Story',
+                'test_type'     => $p->test_type,
+                'current_slide' => $slide,
+                'total_slides'  => $total,
+                'percent'       => (int) round(min($slide / $total, 1) * 100),
+                'updated_at'    => $p->updated_at,
+            ];
+        })->values();
+
+    return response()->json(['success' => true, 'data' => $rows]);
+}
 }
