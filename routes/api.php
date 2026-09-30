@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\StudentProgressController;
 use App\Http\Controllers\Api\ClassReportController;
 
 
+
 Route::post('/classes', [ClassController::class, 'store']);
 Route::get('/classes/{id}/stories', [ClassEnrollmentController::class, 'getClassStories']);
 Route::post('/classes/{id}/assign-story', [ClassEnrollmentController::class, 'assignStoryToClass']);

@@ -7,6 +7,7 @@ use App\Models\Assessment;
 use App\Models\SchoolClass;
 use App\Models\StudentProgress;
 use Illuminate\Http\Request;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 /**
  * Class-level Pre-Test vs Post-Test summary.
@@ -105,23 +106,52 @@ class ClassReportController extends Controller
             else $movement['same']++;
         }
 
-        return response()->json([
-            'success' => true,
-            'class'   => ['id' => $class->id, 'name' => $class->name, 'section' => $class->section],
-            'summary' => [
-                'total_students'  => $rows->count(),
-                'with_pre'        => $rows->filter(fn ($r) => $r['pre_instructional'] !== null || $r['pre_wr'] !== null)->count(),
-                'with_post'       => $rows->filter(fn ($r) => $r['post_instructional'] !== null || $r['post_wr'] !== null)->count(),
-                'paired_students' => $rows->filter(fn ($r) => $r['gain_instructional'] !== null || $r['gain_wr'] !== null)->count(),
-                'movement'        => $movement,
-                'levels'          => [
-                    'pre'  => $this->levelCounts($rows->pluck('pre_level')),
-                    'post' => $this->levelCounts($rows->pluck('post_level')),
-                ],
-                'metrics'         => $metrics,
+        $summary = [
+            'total_students'  => $rows->count(),
+            'with_pre'        => $rows->filter(fn ($r) => $r['pre_instructional'] !== null || $r['pre_wr'] !== null)->count(),
+            'with_post'       => $rows->filter(fn ($r) => $r['post_instructional'] !== null || $r['post_wr'] !== null)->count(),
+            'paired_students' => $rows->filter(fn ($r) => $r['gain_instructional'] !== null || $r['gain_wr'] !== null)->count(),
+            'movement'        => $movement,
+            'levels'          => [
+                'pre'  => $this->levelCounts($rows->pluck('pre_level')),
+                'post' => $this->levelCounts($rows->pluck('post_level')),
             ],
+            'metrics'         => $metrics,
+        ];
+
+        if ($request->query('format') === 'pdf') {
+            return $this->pdf($class, $rows, $summary);
+        }
+
+        return response()->json([
+            'success'  => true,
+            'class'    => ['id' => $class->id, 'name' => $class->name, 'section' => $class->section],
+            'summary'  => $summary,
             'students' => $rows,
         ]);
+    }
+
+    private function pdf($class, $rows, $summary)
+    {
+        $labels = [
+            'instructional' => ['Instructional Grade', ''],
+            'independent'   => ['Independent Grade', ''],
+            'frustration'   => ['Frustration Grade', ''],
+            'wr'            => ['Word Reading (WR)', '%'],
+            'comp'          => ['Comprehension (Comp)', '%'],
+            'wpm'           => ['Words per Minute', ''],
+        ];
+
+        $pdf = Pdf::loadView('reports.pre_post_summary', [
+            'class'     => $class,
+            'rows'      => $rows,
+            'summary'   => $summary,
+            'labels'    => $labels,
+            'generated' => now()->format('F j, Y g:i A'),
+        ])->setPaper('a4', 'landscape');
+
+        $file = 'pre-post-' . preg_replace('/[^A-Za-z0-9_-]+/', '-', $class->name) . '.pdf';
+        return $pdf->download($file);
     }
 
     // ---------------------------------------------------------------- helpers
