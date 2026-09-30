@@ -110,12 +110,6 @@ class StudentProgress extends Model
             ]);
         })
         ->values();
-<<<<<<< HEAD
 }
 
 }
-=======
-}
-
-}
->>>>>>> 543ed5b5076f492e877819e49dcf18e6276e0108
