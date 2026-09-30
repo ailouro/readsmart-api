@@ -274,15 +274,38 @@ class StoryController extends Controller
         $totalWords = $validated['total_words'] ?? 0;
         $wpm = ($totalWords / $timeInSeconds) * 60;
 
-        // --- Phil-IRI Classification ---
-        // Single source of truth: PhilIriService (lower of WR and Comprehension;
-        // a story with no quiz is decided by Word Recognition alone).
-        $readingLevel = app(\App\Services\PhilIriService::class)->levelFromScores(
-            (float) $oralAccuracy,
-            $validated['quiz_score'],
-            $validated['total_questions']
-        );
+        // --- Phil-IRI Classification Standard ---
+        
+        // 1. Determine Word Recognition (WR) Level
+        $wrLevel = 'Frustration';
+        if ($oralAccuracy >= 97) {
+            $wrLevel = 'Independent';
+        } elseif ($oralAccuracy >= 90) {
+            $wrLevel = 'Instructional';
+        }
 
+        // 2. Determine Comprehension (C) Level
+        $cLevel = 'Frustration';
+        if ($comprehensionPct >= 80) {
+            $cLevel = 'Independent';
+        } elseif ($comprehensionPct >= 59) {
+            $cLevel = 'Instructional';
+        }
+
+        // 3. Determine Overall Reading Level
+        $readingLevel = 'Frustration';
+        
+        if ($wrLevel === 'Independent') {
+            if ($cLevel === 'Independent') $readingLevel = 'Independent';
+            elseif ($cLevel === 'Instructional') $readingLevel = 'Instructional';
+            else $readingLevel = 'Frustration';
+        } elseif ($wrLevel === 'Instructional') {
+            if ($cLevel === 'Independent') $readingLevel = 'Independent';
+            elseif ($cLevel === 'Instructional') $readingLevel = 'Instructional';
+            else $readingLevel = 'Frustration';
+        } elseif ($wrLevel === 'Frustration') {
+            $readingLevel = 'Frustration'; // Frustration WR always results in Frustration
+        }
         $progress = \App\Models\StudentProgress::where('user_id', $validated['user_id'])
             ->where('story_id', $validated['story_id'])
             ->orderBy('id', 'desc')
