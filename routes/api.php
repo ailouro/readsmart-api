@@ -80,6 +80,7 @@ Route::get('/classes/{classId}/pre-post-summary', [ClassReportController::class,
 Route::get('/assessment-passage', [AssessmentController::class, 'assessmentPassage']);
 Route::post('/student/assessment-outcome', [AssessmentController::class, 'outcome']);
 Route::get('/teacher/{teacherId}/alerts/{studentId}', [AlertController::class, 'getStudentAlertDetail']);
+Route::get('/teachers/{teacherId}/alerts/{studentId}', [AlertController::class, 'getStudentAlertDetail']);
 Route::get('/classes/{id}/reading-progress', [StudentProgressController::class, 'readingProgress']);
 Route::post('/student/progress/checkpoint', [StudentProgressController::class, 'checkpoint']);
 Route::post('/teachers/{teacherId}/change-password', [AuthController::class, 'changePassword']);    
