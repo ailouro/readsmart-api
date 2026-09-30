@@ -44,7 +44,7 @@ class StudentProgressController extends Controller
 
         $comprehensionPct = ($validated['total_questions'] > 0)
             ? ($validated['quiz_score'] / $validated['total_questions']) * 100
-            : 0;
+            : null; // no quiz -> word reading only
 
         $readingLevel = $this->philIriService->calculateReadingLevel(
             $validated['oral_fluency_accuracy'],

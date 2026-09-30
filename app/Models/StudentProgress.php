@@ -1,115 +1,146 @@
 <?php
 
-namespace App\Models;
+namespace App\Http\Controllers\Api;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\SaveProgressRequest;
+use App\Models\StudentProgress;
+use App\Models\SelfCorrection;
+use App\Services\PhilIriService;
+use Illuminate\Http\Request;
+use App\Models\SchoolClass;
 
-class StudentProgress extends Model
+class StudentProgressController extends Controller
 {
-    use HasFactory;
+    protected PhilIriService $philIriService;
 
-    protected $table = 'student_progress';
+    public function __construct(PhilIriService $philIriService)
+    {
+        $this->philIriService = $philIriService;
+    }
 
-    protected $fillable = [
-    'user_id',
-    'story_id',
-    'test_type',
-    'quiz_score',
-    'total_questions',
-    'total_slides',
-    'oral_fluency_accuracy',
-    'reading_level',
-    'time_on_task',
-    'wpm',
-    'status',
-    'current_slide',
-    'is_reading_completed',
-    'comprehension_score_pct',
-    'word_reading_score_pct',
-    'reading_profile',
-    'struggled_words',
-    'started_at',    
-    'completed_at'
-];
-
-    protected static function boot()
-{
-    parent::boot();
-
-    // Auto-stamp start time on first creation of a progress row
-    static::creating(function ($progress) {
-        if (!$progress->started_at) {
-            $progress->started_at = now();
+   
+    public function getCompletedStories($studentId)
+    {
+        try {
+            return response()->json([
+                'success' => true,
+                'message' => 'Completed stories retrieved successfully.',
+                'data'    => StudentProgress::completedStoriesFor($studentId),
+            ], 200);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch completed stories.',
+                'error'   => $e->getMessage(),
+            ], 500);
         }
-    });
-
-    // Auto-stamp completion time the moment is_reading_completed flips to true
-    static::saving(function ($progress) {
-        if ($progress->isDirty('is_reading_completed')
-            && $progress->is_reading_completed
-            && !$progress->completed_at) {
-            $progress->completed_at = now();
-        }
-    });
-}
-
-    public function user()
-    {
-        return $this->belongsTo(User::class);
     }
 
-    /**
-     * Alias of user(). AnalyticsController queries this relation as
-     * `student.classes` (e.g. whereHas('student.classes', ...)) to find the
-     * classes/sections a learner belongs to, but that relation name didn't
-     * exist on this model, so those queries were failing. Fixed by adding
-     * `student` as an alias for the same user_id foreign key.
-     */
-    public function student()
-    {
-        return $this->belongsTo(User::class, 'user_id');
-    }
 
-    public function story()
+    public function saveProgress(SaveProgressRequest $request)
     {
-        return $this->belongsTo(Story::class, 'story_id');
-    }
+        $validated = $request->validated();
 
-    /**
-     * Stories a student has finished, ready for "Aking Silid-Aklatan".
-     *
-     * Goes through the story() relation instead of a raw join so that:
-     *  - the full story comes back WITH its pages + quiz (the app hands this
-     *    straight to StoryViewerScreen for re-reading, which needs the pages),
-     *  - a story finished more than once is listed once (latest attempt wins),
-     *  - progress rows pointing at a story that no longer exists are skipped
-     *    instead of producing blank/"Unknown" entries.
-     *
-     * The story's own `id` is preserved; the progress fields are merged on top.
-     */
-    public static function completedStoriesFor($userId)
-{
-    return static::query()
-        ->where('user_id', $userId)
-        ->where('is_reading_completed', true)
-        ->whereHas('story')
-        ->with(['story.pages', 'story.quiz'])
-        ->orderByDesc('updated_at')
-        ->orderByDesc('id')
-        ->get()
-        ->unique('story_id')
-        ->map(function ($p) {
-            return array_merge($p->story->toArray(), [
-                'quiz_score'      => $p->quiz_score,
-                'total_questions' => $p->total_questions,
-                'reading_level'   => $p->reading_level,
-                'test_type'       => $p->test_type,
-                'date_completed'  => $p->completed_at ?? $p->updated_at, // <- palitan dati: $p->updated_at,
-                'started_at'      => $p->started_at, // <- bagong idinagdag
+        $comprehensionPct = ($validated['total_questions'] > 0)
+            ? ($validated['quiz_score'] / $validated['total_questions']) * 100
+            : null; // no quiz -> word reading only
+
+        $readingLevel = $this->philIriService->calculateReadingLevel(
+            $validated['oral_fluency_accuracy'],
+            $comprehensionPct
+        );
+
+        $progress = StudentProgress::updateOrCreate(
+            [
+                'user_id' => $validated['user_id'],
+                'story_id' => $validated['story_id'],
+            ],
+            [
+                'test_type' => $validated['test_type'] ?? 'post_test',
+                'quiz_score' => $validated['quiz_score'],
+                'total_questions' => $validated['total_questions'],
+                'oral_fluency_accuracy' => $validated['oral_fluency_accuracy'],
+                'time_on_task' => $validated['time_on_task'],
+                'reading_level' => strtolower($readingLevel),
+                'is_reading_completed' => true,
+            ]
+        );
+
+        foreach ($validated['self_corrected_words'] ?? [] as $w) {
+            SelfCorrection::create([
+                'student_id' => $validated['user_id'],
+                'story_id' => $validated['story_id'],
+                'word' => strtolower($w['word']),
+                'total_attempts' => $w['total_attempts'] ?? 2,
             ]);
-        })
-        ->values();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Progress saved successfully',
+            'data' => $progress
+        ], 201);
+    }
+    public function checkpoint(Request $r)
+{
+    $d = $r->validate([
+        'user_id'       => 'required|integer',
+        'story_id'      => 'required|integer',
+        'test_type'     => 'required|string',
+        'current_slide' => 'required|integer|min:0',
+        'total_slides'  => 'required|integer|min:1',
+    ]);
+
+    $p = StudentProgress::firstOrNew([
+        'user_id'  => $d['user_id'],
+        'story_id' => $d['story_id'],
+    ]);
+
+    if ($p->is_reading_completed) {
+        return response()->json(['skipped' => true]);
+    }
+
+    $p->test_type     = $d['test_type'];
+    $p->current_slide = $d['current_slide'];
+    $p->total_slides  = $d['total_slides'];
+    $p->status        = 'in_progress';
+    $p->save();
+
+    return response()->json(['success' => true]);
 }
 
+public function readingProgress($class_id)
+{
+    $class = SchoolClass::with('students')->find($class_id);
+    if (!$class) return response()->json(['data' => []], 404);
+
+    $rows = StudentProgress::whereIn('user_id', $class->students->pluck('id'))
+        ->where('is_reading_completed', false)
+        ->where('status', 'in_progress')
+        ->whereNotNull('total_slides')
+        ->with('story:id,title')
+        ->orderByDesc('updated_at')
+        ->get()
+        ->map(function ($p) use ($class) {
+            $total = max((int) $p->total_slides, 1);
+            $slide = (int) $p->current_slide + 1;
+            $stu   = $class->students->firstWhere('id', $p->user_id);
+            return [
+                'student_id'    => $p->user_id,
+                'student_name'  => $stu->name
+                    ?? trim(($stu->first_name ?? '') . ' ' . ($stu->last_name ?? ''))
+                    ?: 'Student',
+                'story_id'      => $p->story_id,
+                'story_title'   => $p->story->title ?? 'Story',
+                'test_type'     => $p->test_type,
+                'current_slide' => $slide,
+                'total_slides'  => $total,
+                'percent'       => (int) round(min($slide / $total, 1) * 100),
+                'updated_at'    => $p->updated_at,
+            ];
+        })->values();
+
+    return response()->json(['success' => true, 'data' => $rows]);
+}
 }
