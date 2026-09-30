@@ -93,6 +93,11 @@ class AlertController extends Controller
             ->take(10)
             ->get();
 
+        $comp = fn ($r) => $r->comprehension_score_pct
+    ?? ($r->total_questions > 0
+        ? round($r->quiz_score / $r->total_questions * 100, 1)
+        : null);
+
         // Pagsamahin ang struggled words sa lahat ng sessions, bilangin kung ilang beses lumabas
         $wordCounts = [];
         foreach ($rows as $r) {
@@ -116,6 +121,13 @@ class AlertController extends Controller
         }
 
         $latest = $rows->first();
+        $comprehensionPct = null;
+if ($latest) {
+    $comprehensionPct = $latest->comprehension_score_pct
+        ?? ($latest->total_questions > 0
+            ? round($latest->quiz_score / $latest->total_questions * 100, 1)
+            : null);
+}
 
         return response()->json([
             'success' => true,
@@ -128,8 +140,9 @@ class AlertController extends Controller
                     'reading_profile'         => $latest->reading_profile,
                     'wpm'                     => $latest->wpm,
                     'oral_fluency_accuracy'   => $latest->oral_fluency_accuracy,
-                    'comprehension_score_pct' => $latest->comprehension_score_pct,
-                    'word_reading_score_pct'  => $latest->word_reading_score_pct,
+                    'comprehension_score_pct' => $comprehensionPct,
+                    'word_reading_score_pct' => $latest->word_reading_score_pct
+                    ?? $latest->oral_fluency_accuracy,
                 ] : null,
                 'top_struggled_words' => $topWords,
                 'history' => $rows->map(fn ($r) => [
