@@ -15,6 +15,7 @@ use App\Http\Controllers\SelfCorrectionController;
 use App\Http\Controllers\MiscueController;
 use App\Http\Controllers\Api\AssessmentController;
 use App\Http\Controllers\Api\StudentProgressController;
+use App\Http\Controllers\Api\ClassReportController;
 
 
 Route::post('/classes', [ClassController::class, 'store']);
@@ -75,8 +76,10 @@ Route::post('/student-self-corrections', [MiscueController::class, 'storeSelfCor
 Route::get('/student/{studentId}/completed-stories', [StoryController::class, 'getCompletedStories']);
 Route::post('/classes/{id}/assessments', [AssessmentController::class, 'store']);
 Route::get('/classes/{id}/assessments', [AssessmentController::class, 'index']);
+Route::get('/classes/{classId}/pre-post-summary', [ClassReportController::class, 'prePostSummary']);
 Route::get('/assessment-passage', [AssessmentController::class, 'assessmentPassage']);
 Route::post('/student/assessment-outcome', [AssessmentController::class, 'outcome']);
+Route::get('/teacher/{teacherId}/alerts/{studentId}', [AlertController::class, 'getStudentAlertDetail']);
 Route::get('/classes/{id}/reading-progress', [StudentProgressController::class, 'readingProgress']);
 Route::post('/student/progress/checkpoint', [StudentProgressController::class, 'checkpoint']);
 Route::post('/teachers/{teacherId}/change-password', [AuthController::class, 'changePassword']);    

@@ -77,4 +77,35 @@ class AlertController extends Controller
             ], 500);
         }
     }
+
+    public function getStudentAlertDetail($teacherId, $studentId)
+{
+    try {
+        // Siguraduhing estudyante ito ng teacher na 'to
+        $student = User::where('role', 'student')
+            ->where('id', $studentId)
+            ->whereHas('classes', fn ($q) => $q->where('teacher_id', $teacherId))
+            ->with(['classes' => fn ($q) => $q->where('teacher_id', $teacherId)])
+            ->firstOrFail();
+
+        $history = StudentProgress::where('user_id', $student->id)
+            ->orderBy('created_at', 'desc')
+            ->take(10)
+            ->get(['reading_level', 'created_at']);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'student_id' => $student->id,
+                'student_name' => $student->name ?? $student->username,
+                'class_name' => $student->classes->first()->name ?? 'No Class',
+                'history' => $history,
+            ],
+        ], 200);
+    } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        return response()->json(['success' => false, 'error' => 'Student not found'], 404);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+    }
+    }
 }
