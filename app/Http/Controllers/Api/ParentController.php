@@ -13,12 +13,14 @@ class ParentController extends Controller
 {
     public function dashboard($parentId)
     {
+        // OPTIONAL: uncomment if this route is behind auth middleware, so a
+        // parent can't view another parent's dashboard by changing the ID.
+        // if ((int) auth()->id() !== (int) $parentId) {
+        //     return response()->json(['message' => 'Forbidden'], 403);
+        // }
+
         $parent = User::find($parentId);
         $notifications = [];
-        $student = Student::where('parent_id', auth()->id())->first();
-        $class = SchoolClass::with('teacher')->where('id', $student->class_id)->first();
-
-        return view('parent.dashboard', compact('student', 'class'));
 
         if ($parent) {
             // Approved student-account requests this parent hasn't seen a
@@ -69,7 +71,8 @@ class ParentController extends Controller
             $notifications = $accountNotifications->concat($classNotifications)->values();
         }
 
-        // Find the student linked to this parent
+        // Find the student linked to this parent (users table, not the
+        // legacy students table).
         $student = User::where('parent_id', $parentId)->where('role', 'student')->first();
 
         if (!$student) {
@@ -77,21 +80,17 @@ class ParentController extends Controller
             // of a 404, so the app doesn't need a special error branch just
             // to render its "not connected to a class yet" empty state.
             return response()->json([
-                'student_id'   => null,
-                'student_name' => null,
-                'classes'      => [],
+                'student_id'    => null,
+                'student_name'  => null,
+                'classes'       => [],
                 'notifications' => $notifications,
             ], 200);
         }
 
-        // 🛠️ FIX: was ->classes()->first(), which silently dropped every
-        // class after the first one a student was enrolled in. A student
-        // can belong to more than one class (you have a class_student
-        // pivot table for exactly this), so return all of them.
-        // Only classes the student is actually attached to show up here —
-        // a class_join_request stays "pending" until the teacher approves
-        // it, so requested-but-not-yet-approved classes correctly don't
-        // appear yet.
+        // Return ALL classes the student is attached to via the class_student
+        // pivot. Requested-but-not-yet-approved classes correctly don't
+        // appear, since a class_join_request stays "pending" until the
+        // teacher approves it.
         $classes = $student->classes()->get()->map(function ($class) {
             return [
                 'class_name'  => $class->name,
@@ -101,9 +100,9 @@ class ParentController extends Controller
         });
 
         return response()->json([
-            'student_id'   => $student->id,
-            'student_name' => $student->name,
-            'classes'      => $classes,
+            'student_id'    => $student->id,
+            'student_name'  => $student->name,
+            'classes'       => $classes,
             'notifications' => $notifications,
         ], 200);
     }
@@ -189,10 +188,10 @@ class ParentController extends Controller
             ], 200);
         }
 
-        // 🛠️ Class joining now needs teacher approval: create a pending
-        // request instead of immediately linking the parent and attaching
-        // the student to the class. The teacher approves/declines it from
-        // their dashboard notification bell (see TeacherClassRequestController).
+        // Class joining needs teacher approval: create a pending request
+        // instead of immediately linking the parent and attaching the
+        // student to the class. The teacher approves/declines it from their
+        // dashboard notification bell (see TeacherClassRequestController).
         ClassJoinRequest::create([
             'parent_id'       => $request->parent_id,
             'student_name'    => $student->name,
