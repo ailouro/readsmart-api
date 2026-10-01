@@ -71,38 +71,37 @@ class ParentController extends Controller
             $notifications = $accountNotifications->concat($classNotifications)->values();
         }
 
-        // Find the student linked to this parent (users table, not the
-        // legacy students table).
-        $student = User::where('parent_id', $parentId)->where('role', 'student')->first();
+        // A parent can have several children (users.parent_id on each
+        // student). Return ALL of them, each with their own classes.
+        $students = User::where('parent_id', $parentId)
+            ->where('role', 'student')
+            ->orderBy('id')
+            ->get();
 
-        if (!$student) {
-            // No linked child yet — return an empty-but-valid shape instead
-            // of a 404, so the app doesn't need a special error branch just
-            // to render its "not connected to a class yet" empty state.
-            return response()->json([
-                'student_id'    => null,
-                'student_name'  => null,
-                'classes'       => [],
-                'notifications' => $notifications,
-            ], 200);
-        }
-
-        // Return ALL classes the student is attached to via the class_student
-        // pivot. Requested-but-not-yet-approved classes correctly don't
-        // appear, since a class_join_request stays "pending" until the
-        // teacher approves it.
-        $classes = $student->classes()->get()->map(function ($class) {
+        $children = $students->map(function ($student) {
             return [
-                'class_name'  => $class->name,
-                'class_code'  => $class->class_code,
-                'grade_level' => $class->grade_level,
+                'student_id'   => $student->id,
+                'student_name' => $student->name ?: trim($student->first_name . ' ' . $student->last_name),
+                'lrn'          => $student->lrn,
+                'classes'      => $student->classes()->get()->map(function ($class) {
+                    return [
+                        'class_name'  => $class->name,
+                        'class_code'  => $class->class_code,
+                        'grade_level' => $class->grade_level,
+                    ];
+                })->values(),
             ];
-        });
+        })->values();
+
+        // Back-compat: keep the old single-child fields (first child) so
+        // an older app build doesn't break. New app reads `children`.
+        $first = $children->first();
 
         return response()->json([
-            'student_id'    => $student->id,
-            'student_name'  => $student->name,
-            'classes'       => $classes,
+            'children'      => $children,
+            'student_id'    => $first['student_id'] ?? null,
+            'student_name'  => $first['student_name'] ?? null,
+            'classes'       => $first['classes'] ?? [],
             'notifications' => $notifications,
         ], 200);
     }
