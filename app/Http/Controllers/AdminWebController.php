@@ -803,6 +803,79 @@ class AdminWebController extends Controller
     }
 
     // -----------------------------------------------------------------
+    // PARENT <-> CHILD LINKING — a parent can have several children.
+    // Admin types a student's LRN on the parent's row to link them, and
+    // can unlink one later. Each linked child keeps their own progress,
+    // so the parent app can show one progress report per child.
+    // -----------------------------------------------------------------
+    public function linkChild(Request $request, $id)
+    {
+        $data = $request->validate([
+            'child_lrn' => 'required|string',
+        ], [
+            'child_lrn.required' => "Please enter the child's LRN.",
+        ]);
+
+        $parent = User::where('role', 'parent')->findOrFail($id);
+        $lrn    = trim($data['child_lrn']);
+
+        $child = User::where('role', 'student')->where('lrn', $lrn)->first();
+        if (!$child) {
+            return back()->withErrors([
+                'child_lrn' => "No student account found with LRN {$lrn}. Create the student first.",
+            ]);
+        }
+
+        if ($child->parent_id && (int) $child->parent_id === (int) $parent->id) {
+            return back()->withErrors([
+                'child_lrn' => "{$child->name} is already linked to {$parent->name}.",
+            ]);
+        }
+
+        if ($child->parent_id) {
+            $other = User::find($child->parent_id);
+            return back()->withErrors([
+                'child_lrn' => "{$child->name} is already linked to " . ($other->name ?? 'another parent')
+                    . ". Unlink them there first.",
+            ]);
+        }
+
+        DB::transaction(function () use ($parent, $child) {
+            $child->parent_id = $parent->id;
+            $child->save();
+
+            $studentRow = Student::where('user_id', $child->id)->first();
+            if ($studentRow) {
+                $studentRow->parent_id = $parent->id;
+                $studentRow->save();
+            }
+        });
+
+        return back()->with('success', "{$child->name} is now linked to {$parent->name}.");
+    }
+
+    public function unlinkChild($parentId, $studentId)
+    {
+        $parent = User::where('role', 'parent')->findOrFail($parentId);
+        $child  = User::where('role', 'student')
+            ->where('parent_id', $parent->id)
+            ->findOrFail($studentId);
+
+        DB::transaction(function () use ($child) {
+            $child->parent_id = null;
+            $child->save();
+
+            $studentRow = Student::where('user_id', $child->id)->first();
+            if ($studentRow) {
+                $studentRow->parent_id = null;
+                $studentRow->save();
+            }
+        });
+
+        return back()->with('success', "{$child->name} was unlinked from {$parent->name}.");
+    }
+
+    // -----------------------------------------------------------------
     // TEACHERS — admin can create accounts directly here too now, in
     // addition to teachers self-registering through the app (that flow,
     // and the approve/revoke methods below, are unchanged: a

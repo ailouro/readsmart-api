@@ -155,8 +155,23 @@
                                     @if ($kids->isEmpty())
                                         <span class="pill pill-wait">None linked</span>
                                     @else
-                                        {{ $kids->pluck('name')->filter()->implode(', ') }}
+                                        @foreach ($kids as $kid)
+                                            <form method="POST" action="{{ route('admin.parents.unlink-child', [$p->id, $kid->id]) }}"
+                                                  onsubmit="return confirm('Unlink {{ $kid->name }} from this parent?');"
+                                                  style="display:inline-flex; align-items:center; gap:4px; margin:0 6px 4px 0;">
+                                                @csrf
+                                                <span class="pill pill-ok">{{ $kid->name ?: trim($kid->first_name . ' ' . $kid->last_name) }} <code>{{ $kid->lrn }}</code></span>
+                                                <button type="submit" title="Unlink" class="row-remove-btn" style="width:auto; padding:0 4px;">&times;</button>
+                                            </form>
+                                        @endforeach
                                     @endif
+
+                                    <form method="POST" action="{{ route('admin.parents.link-child', $p->id) }}" class="inline-form" style="margin-top:6px;">
+                                        @csrf
+                                        <input type="text" name="child_lrn" placeholder="Add child's LRN" required
+                                               style="padding:5px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:13px; width:150px;">
+                                        <button type="submit" class="btn btn-sm">+ Add child</button>
+                                    </form>
                                 </td>
                                 <td>
                                     <form method="POST" action="{{ route('admin.users.reset-password', $p->id) }}"
