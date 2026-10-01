@@ -16,9 +16,9 @@ use App\Http\Controllers\MiscueController;
 use App\Http\Controllers\Api\AssessmentController;
 use App\Http\Controllers\Api\StudentProgressController;
 use App\Http\Controllers\Api\ClassReportController;
+use App\Http\Controllers\Api\DictionaryController;
 
-
-
+Route::get('/define', [DictionaryController::class, 'define']);
 Route::post('/classes', [ClassController::class, 'store']);
 Route::get('/classes/{id}/stories', [ClassEnrollmentController::class, 'getClassStories']);
 Route::post('/classes/{id}/assign-story', [ClassEnrollmentController::class, 'assignStoryToClass']);
