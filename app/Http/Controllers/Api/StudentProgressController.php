@@ -51,6 +51,12 @@ class StudentProgressController extends Controller
             $comprehensionPct
         );
 
+        $wpm = $this->computeWpm(
+    $validated['story_id'],
+    $validated['oral_fluency_accuracy'],
+    $validated['time_on_task']
+);  
+
         $progress = StudentProgress::updateOrCreate(
             [
                 'user_id' => $validated['user_id'],
@@ -62,6 +68,8 @@ class StudentProgressController extends Controller
                 'total_questions' => $validated['total_questions'],
                 'oral_fluency_accuracy' => $validated['oral_fluency_accuracy'],
                 'time_on_task' => $validated['time_on_task'],
+                'wpm' => $wpm, 
+                'comprehension_score_pct' => $comprehensionPct,
                 'reading_level' => strtolower($readingLevel),
                 'is_reading_completed' => true,
             ]
@@ -142,5 +150,45 @@ public function readingProgress($class_id)
         })->values();
 
     return response()->json(['success' => true, 'data' => $rows]);
+}
+
+private function computeWpm(int $storyId, $accuracy, $seconds): ?float
+{
+    if (!$seconds || $seconds <= 0) return null;
+
+    $scripts = \DB::table('story_pages')
+        ->where('story_id', $storyId)
+        ->orderBy('page_number')
+        ->pluck('audio_scripts');
+
+    if ($scripts->isEmpty()) return null;
+
+    $flatten = function ($v) use (&$flatten) {
+        if (is_string($v)) {
+            $d = json_decode($v, true);
+            return is_array($d) ? $flatten($d) : [$v];
+        }
+        if (is_array($v)) {
+            return collect($v)->flatMap(fn ($x) => $flatten($x))->all();
+        }
+        return [];
+    };
+
+    $words = 0;
+    foreach ($scripts as $raw) {
+        $seen = [];
+        foreach ($flatten($raw) as $line) {
+            $clean = trim(preg_replace('/\s+/', ' ', strip_tags((string) $line)));
+            $key   = strtolower(preg_replace('/\s+/', '', $clean));
+            if ($clean === '' || isset($seen[$key])) continue;   // skip kung kapareho na ng nauna
+            $seen[$key] = true;
+            $words += count(explode(' ', $clean));
+        }
+    }
+    if ($words === 0) return null;
+
+    $correct = $words * (max(0, min(100, (float) $accuracy)) / 100);
+
+    return round($correct / ($seconds / 60), 1);
 }
 }
