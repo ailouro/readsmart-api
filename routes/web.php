@@ -31,3 +31,8 @@ Route::post('/admin/classes', [AdminWebController::class, 'storeClass'])->name('
 Route::post('/admin/classes/assign', [AdminWebController::class, 'assignStudentsToClass'])->name('admin.classes.assign');
 Route::post('/admin/classes/{classId}/students/{studentId}', [AdminWebController::class, 'removeStudentFromClass'])->name('admin.classes.remove-student');
 Route::post('/classes/{id}/co-teacher', [AdminWebController::class, 'setCoTeacher'])->name('admin.classes.co-teacher');
+Route::post('/parents/{id}/children', [AdminWebController::class, 'linkChild'])
+    ->name('admin.parents.link-child');
+
+Route::post('/parents/{parent}/children/{student}/unlink', [AdminWebController::class, 'unlinkChild'])
+    ->name('admin.parents.unlink-child');
