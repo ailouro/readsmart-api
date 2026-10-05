@@ -4,60 +4,60 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use App\Models\StudentProgress; 
-use App\Models\Mispronunciation; 
+use App\Services\PhilIriService;
+use App\Models\StudentProgress;
+use App\Models\Mispronunciation;
 use App\Models\User;
 
 class AnalyticsController extends Controller
 {
+    public function __construct(private PhilIriService $philIri) {}
+
     /**
      * Endpoint 1: Dashboard Summary
+     *
+     * Isang bata = isang bilang. Para sa napiling test_type (pre_test / post_test),
+     * inaaverage ang oral accuracy at comprehension % ng lahat ng natapos na
+     * stories ng bata, tapos ipinapasa sa PhilIriService para makuha ang level.
      */
-    public function dashboardSummary($teacherId)
+    public function dashboardSummary(Request $request, $teacherId)
     {
         try {
-            // Every reading attempt for students in any of this teacher's
-            // classes that already has a Phil-IRI reading_level computed.
-            // (Interim/in-progress rows have reading_level = null and are
-            // correctly excluded, same as before.)
-            $progress = StudentProgress::with(['student.classes' => function ($query) use ($teacherId) {
+            $testType = $request->query('test_type', 'post_test');
+
+            $byStudent = StudentProgress::with(['student.classes' => function ($query) use ($teacherId) {
                     $query->where('teacher_id', $teacherId);
                 }])
                 ->whereHas('student.classes', function ($query) use ($teacherId) {
                     $query->where('teacher_id', $teacherId);
                 })
+                ->where('test_type', $testType)
+                ->where('is_reading_completed', true)
                 ->whereNotNull('reading_level')
-                ->get();
+                ->get()
+                ->groupBy('user_id');
 
-            $frustration = 0;
-            $instructional = 0;
-            $independent = 0;
+            $counts = ['frustration' => 0, 'instructional' => 0, 'independent' => 0];
 
-            // Per class + section breakdown (e.g. "Grade 5 - Magsaysay"), so
-            // the dashboard chart can show exactly where each count comes
-            // from, and hovering/tapping a bar can name the class/section.
+            // Per class + section breakdown (e.g. "Grade 5 - Magsaysay").
+            // Ang batang nasa higit sa isang class ay lalabas sa bawat class,
+            // pero isang beses lang sa overall total.
             $classBreakdown = [];
 
-            foreach ($progress as $row) {
-                if (in_array($row->reading_level, ['frustration', 'instructional', 'independent'], true)) {
-                    switch ($row->reading_level) {
-                        case 'frustration':
-                            $frustration++;
-                            break;
-                        case 'instructional':
-                            $instructional++;
-                            break;
-                        case 'independent':
-                            $independent++;
-                            break;
-                    }
-                }
-
-                if (!$row->student) {
+            foreach ($byStudent as $attempts) {
+                $student = $attempts->first()->student;
+                if (!$student) {
                     continue;
                 }
 
-                foreach ($row->student->classes as $class) {
+                $level = strtolower($this->philIri->calculateReadingLevel(
+                    (float) $attempts->avg('oral_fluency_accuracy'),
+                    (float) $attempts->avg('comprehension_score_pct')
+                ));
+
+                $counts[$level]++;
+
+                foreach ($student->classes as $class) {
                     $key = $class->id;
                     if (!isset($classBreakdown[$key])) {
                         $classBreakdown[$key] = [
@@ -71,18 +71,12 @@ class AnalyticsController extends Controller
                             'total' => 0,
                         ];
                     }
-                    if (in_array($row->reading_level, ['frustration', 'instructional', 'independent'], true)) {
-                        $classBreakdown[$key][$row->reading_level]++;
-                        $classBreakdown[$key]['total']++;
-                    }
+                    $classBreakdown[$key][$level]++;
+                    $classBreakdown[$key]['total']++;
                 }
             }
 
-            // Roster for the "Learner's Individual Record Card" / "Learners'
-            // Records" sections further down both dashboards. This endpoint
-            // never returned a 'students' key before, which is why those
-            // sections always showed "No students enrolled yet." even when
-            // the teacher had classes full of students.
+            // Roster para sa "Learner's Individual Record Card" / "Learners' Records".
             $students = User::whereHas('classes', function ($query) use ($teacherId) {
                     $query->where('teacher_id', $teacherId);
                 })
@@ -103,9 +97,10 @@ class AnalyticsController extends Controller
                 ->values();
 
             return response()->json([
-                'frustration_count' => $frustration,
-                'instructional_count' => $instructional,
-                'independent_count' => $independent,
+                'test_type' => $testType,
+                'frustration_count' => $counts['frustration'],
+                'instructional_count' => $counts['instructional'],
+                'independent_count' => $counts['independent'],
                 'class_breakdown' => array_values($classBreakdown),
                 'students' => $students,
             ], 200);
@@ -121,7 +116,7 @@ class AnalyticsController extends Controller
     public function mispronunciations($teacherId)
     {
         try {
-            // Because you log every mistake individually, we use DB::raw to group them 
+            // Because you log every mistake individually, we use DB::raw to group them
             // by word, student, and story, and count how many times it occurred.
             $logs = Mispronunciation::with(['student'])
                 ->whereHas('student.classes', function ($query) use ($teacherId) {
@@ -144,14 +139,14 @@ class AnalyticsController extends Controller
                     'word' => $log->word,
                     'student_id' => $log->student_id,
                     'story_id' => $log->story_id,
-                    'total_attempts' => $log->total_attempts, // From the DB::raw count above
+                    'total_attempts' => $log->total_attempts,
                     'student' => [
                         'id' => $log->student_id,
                         'name' => $log->student ? ($log->student->name ?? $log->student->username ?? 'Unknown') : 'Unknown',
                     ],
                     'story' => [
                         'id' => $log->story_id,
-                        'title' => $log->story_title, // Directly uses your story_title string column
+                        'title' => $log->story_title,
                     ]
                 ];
             });

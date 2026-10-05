@@ -47,7 +47,7 @@ class StudentProgressController extends Controller
             : 0;
 
         $readingLevel = $this->philIriService->calculateReadingLevel(
-            $validated['oral_fluency_accuracy'],
+            $validated['oral_fluency_accuracy'], 
             $comprehensionPct
         );
 
@@ -61,12 +61,13 @@ class StudentProgressController extends Controller
             [
                 'user_id' => $validated['user_id'],
                 'story_id' => $validated['story_id'],
+                'test_type' => $validated['test_type'], 
             ],
             [
-                'test_type' => $validated['test_type'] ?? 'post_test',
                 'quiz_score' => $validated['quiz_score'],
                 'total_questions' => $validated['total_questions'],
                 'oral_fluency_accuracy' => $validated['oral_fluency_accuracy'],
+                'word_reading_score_pct'  => $validated['oral_fluency_accuracy'],
                 'time_on_task' => $validated['time_on_task'],
                 'wpm' => $wpm, 
                 'comprehension_score_pct' => $comprehensionPct,
@@ -103,6 +104,7 @@ class StudentProgressController extends Controller
     $p = StudentProgress::firstOrNew([
         'user_id'  => $d['user_id'],
         'story_id' => $d['story_id'],
+        'test_type' => $d['test_type'],
     ]);
 
     if ($p->is_reading_completed) {
