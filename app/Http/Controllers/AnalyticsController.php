@@ -39,6 +39,9 @@ class AnalyticsController extends Controller
 
             $counts = ['frustration' => 0, 'instructional' => 0, 'independent' => 0];
 
+            // user_id => level + averages, para magamit sa roster at sa dropdown ng app
+            $studentResults = [];
+
             // Per class + section breakdown (e.g. "Grade 5 - Magsaysay").
             // Ang batang nasa higit sa isang class ay lalabas sa bawat class,
             // pero isang beses lang sa overall total.
@@ -50,12 +53,29 @@ class AnalyticsController extends Controller
                     continue;
                 }
 
+                $avgAccuracy      = (float) $attempts->avg('oral_fluency_accuracy');
+                $avgComprehension = (float) $attempts->avg('comprehension_score_pct');
+
                 $level = strtolower($this->philIri->calculateReadingLevel(
-                    (float) $attempts->avg('oral_fluency_accuracy'),
-                    (float) $attempts->avg('comprehension_score_pct')
+                    $avgAccuracy,
+                    $avgComprehension
                 ));
 
+                $wrLevel   = strtolower($this->philIri->wordReadingLevel($avgAccuracy));
+                $compLevel = strtolower($this->philIri->comprehensionLevel($avgComprehension));
+
                 $counts[$level]++;
+
+                // Ito ang "computation" na makikita sa diagram ng dashboard:
+                // Word Reading % + Comprehension % -> level ng bawat isa -> final level
+                $studentResults[$student->id] = [
+                    'reading_level'     => $level,
+                    'wr_level'          => $wrLevel,
+                    'comp_level'        => $compLevel,
+                    'avg_accuracy'      => round($avgAccuracy, 2),
+                    'avg_comprehension' => (int) round($avgComprehension),
+                    'stories_read'      => $attempts->count(),
+                ];
 
                 foreach ($student->classes as $class) {
                     $key = $class->id;
@@ -69,11 +89,23 @@ class AnalyticsController extends Controller
                             'instructional' => 0,
                             'independent' => 0,
                             'total' => 0,
+                            'acc_sum' => 0.0,
+                            'comp_sum' => 0.0,
                         ];
                     }
                     $classBreakdown[$key][$level]++;
                     $classBreakdown[$key]['total']++;
+                    $classBreakdown[$key]['acc_sum'] += $avgAccuracy;
+                    $classBreakdown[$key]['comp_sum'] += $avgComprehension;
                 }
+            }
+
+            // Average ng klase = average ng average ng bawat bata
+            foreach ($classBreakdown as $k => $row) {
+                $n = max($row['total'], 1);
+                $classBreakdown[$k]['avg_accuracy'] = round($row['acc_sum'] / $n, 2);
+                $classBreakdown[$k]['avg_comprehension'] = (int) round($row['comp_sum'] / $n);
+                unset($classBreakdown[$k]['acc_sum'], $classBreakdown[$k]['comp_sum']);
             }
 
             // Roster para sa "Learner's Individual Record Card" / "Learners' Records".
@@ -84,14 +116,22 @@ class AnalyticsController extends Controller
                     $query->where('teacher_id', $teacherId);
                 }])
                 ->get()
-                ->map(function ($student) {
+                ->map(function ($student) use ($studentResults) {
                     $class = $student->classes->first();
+                    $result = $studentResults[$student->id] ?? null;
                     return [
                         'id' => $student->id,
                         'name' => $student->name,
                         'lrn' => $student->lrn ?? null,
                         'grade_level' => $student->grade_level ?? optional($class)->grade_level,
                         'section' => $student->section ?? optional($class)->section,
+                        // null kung wala pang natapos na story para sa napiling test_type
+                        'reading_level' => $result['reading_level'] ?? null,
+                        'wr_level' => $result['wr_level'] ?? null,
+                        'comp_level' => $result['comp_level'] ?? null,
+                        'avg_accuracy' => $result['avg_accuracy'] ?? null,
+                        'avg_comprehension' => $result['avg_comprehension'] ?? null,
+                        'stories_read' => $result['stories_read'] ?? 0,
                     ];
                 })
                 ->values();
