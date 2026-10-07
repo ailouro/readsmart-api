@@ -187,7 +187,10 @@ class AnalyticsController extends Controller
                 $rows[] = [
                     'id'               => $student->id,
                     'name'             => $student->name ?? $student->username,
+                    'username'         => $student->username ?? null,
+                    'avatar'           => $student->avatar ?? null,
                     'lrn'              => $student->lrn ?? null,
+                    'class_name'       => optional($first)->name,
                     'grade_level'      => $student->grade_level ?? optional($first)->grade_level,
                     'section'          => $student->section ?? optional($first)->section,
                     'class_id'         => optional($first)->id,
