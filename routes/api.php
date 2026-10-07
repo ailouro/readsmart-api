@@ -58,7 +58,9 @@ Route::post('/student/save-reading-progress', [StoryController::class, 'saveRead
 Route::post('/stories/{story_id}/slides/{slide_index}/generate-tts', [StoryAudioController::class, 'generateTts']);
 Route::get('/teachers/{teacher_id}/mispronunciations', [ClassEnrollmentController::class, 'getTeacherStudentLogs']);
 Route::get('/teachers/{teacher_id}/classes', [ClassEnrollmentController::class, 'getTeacherClasses']);
-Route::get('/teachers/{teacher_id}/dashboard-summary', [ClassEnrollmentController::class, 'getTeacherDashboardSummary']);
+// Pinalitan ng AnalyticsController::teacherDashboardSummary (tingnan sa ibaba).
+// Laravel ay kinukuha ang UNANG route na tumutugma, kaya dapat isa lang ito.
+// Route::get('/teachers/{teacher_id}/dashboard-summary', [ClassEnrollmentController::class, 'getTeacherDashboardSummary']);
 Route::post('classes/{classId}/assessments/bulk', [AssessmentController::class, 'bulkStore']);
 Route::post('classes/{classId}/assessments', [AssessmentController::class, 'store']);
 Route::post('/email/resend', [AuthController::class, 'resendVerification']);
