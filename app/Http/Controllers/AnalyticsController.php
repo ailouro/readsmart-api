@@ -33,24 +33,23 @@ class AnalyticsController extends Controller
             $overallPreStats = ['frustration' => 0, 'instructional' => 0, 'independent' => 0, 'acc_sum' => 0, 'comp_sum' => 0, 'count' => 0];
             $overallPostStats = ['frustration' => 0, 'instructional' => 0, 'independent' => 0, 'acc_sum' => 0, 'comp_sum' => 0, 'count' => 0];
 
+            // Isang query para sa lahat ng natapos na progress (iwas N+1)
+            $allProgress = StudentProgress::whereIn('user_id', $students->pluck('id'))
+                ->where('is_reading_completed', true)
+                ->get()
+                ->groupBy('user_id');
+
             foreach ($students as $student) {
                 $class = $student->classes->first();
 
                 // Get Pre-test Progress
-                $preAttempts = StudentProgress::where('user_id', $student->id)
-                    ->where('test_type', 'pre_test')
-                    ->where('is_reading_completed', true)
-                    ->get();
+                $preAttempts = ($allProgress[$student->id] ?? collect())->where('test_type', 'pre_test')->values();
 
                 // Get Post-test Progress
-                $postAttempts = StudentProgress::where('user_id', $student->id)
-                    ->where('test_type', 'post_test')
-                    ->where('is_reading_completed', true)
-                    ->get();
+                $postAttempts = ($allProgress[$student->id] ?? collect())->where('test_type', 'post_test')->values();
 
                 // Compute Pre-test Averages
-                $preAcc  = $preAttempts->count() > 0 ? (float) $preAttempts->avg('oral_fluency_accuracy') : null;
-                $preComp = $preAttempts->count() > 0 ? (float) $preAttempts->avg('comprehension_score_pct') : null;
+                [$preAcc, $preComp] = $this->pooled($preAttempts);
                 $preLevel = ($preAcc !== null && $preComp !== null) 
                     ? strtolower($this->philIri->calculateReadingLevel($preAcc, $preComp)) 
                     : null;
@@ -63,8 +62,7 @@ class AnalyticsController extends Controller
                 }
 
                 // Compute Post-test Averages
-                $postAcc  = $postAttempts->count() > 0 ? (float) $postAttempts->avg('oral_fluency_accuracy') : null;
-                $postComp = $postAttempts->count() > 0 ? (float) $postAttempts->avg('comprehension_score_pct') : null;
+                [$postAcc, $postComp] = $this->pooled($postAttempts);
                 $postLevel = ($postAcc !== null && $postComp !== null) 
                     ? strtolower($this->philIri->calculateReadingLevel($postAcc, $postComp)) 
                     : null;
@@ -134,7 +132,33 @@ class AnalyticsController extends Controller
         }
     }
 
-    public function mispronunciations($teacherId)
+    /**
+     * POOLED na accuracy/comprehension (kabuuang tamang salita / kabuuang
+     * salita, kabuuang tamang sagot / kabuuang tanong) -- parehong kuwenta
+     * ng StudentProgressController::detail(), hindi average ng mga %.
+     * Kung walang total_words (lumang records), average ang fallback.
+     */
+    private function pooled($attempts): array
+    {
+        if ($attempts->isEmpty()) {
+            return [null, null];
+        }
+
+        $words   = (int) $attempts->sum('total_words');
+        $miscues = (int) $attempts->sum('miscues_count');
+        $quizC   = (int) $attempts->sum('quiz_score');
+        $quizQ   = (int) $attempts->sum('total_questions');
+
+        $acc = $words > 0
+            ? round((max(0, $words - $miscues) / $words) * 100, 1)
+            : round((float) $attempts->avg('oral_fluency_accuracy'), 1);
+        $comp = $quizQ > 0
+            ? round(($quizC / $quizQ) * 100)
+            : round((float) $attempts->avg('comprehension_score_pct'));
+
+        return [(float) $acc, (float) $comp];
+    }
+public function getMispronunciationData($teacherId)
     {
         try {
             $logs = Mispronunciation::with(['student'])

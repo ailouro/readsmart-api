@@ -38,8 +38,12 @@ class AlertController extends Controller
                 // $latestProgress->count() was always 0, `continue` always
                 // fired, and no alert could ever be generated — this was
                 // almost certainly the actual bug behind the empty results.
+                // Natapos lang na story ang binibilang, pinakabago muna (completed_at) --
+                // parehong rule ng roster ("Needs help") sa teacher app.
                 $latestProgress = StudentProgress::where('user_id', $student->id)
-                    ->orderBy('created_at', 'desc')
+                    ->where('is_reading_completed', true)
+                    ->orderByDesc('completed_at')
+                    ->orderByDesc('id')
                     ->take(2)
                     ->get();
 
@@ -89,7 +93,9 @@ class AlertController extends Controller
 
         $rows = StudentProgress::with('story')
             ->where('user_id', $student->id)
-            ->orderByDesc('created_at')
+            ->where('is_reading_completed', true)
+            ->orderByDesc('completed_at')
+            ->orderByDesc('id')
             ->take(10)
             ->get();
 
@@ -153,7 +159,7 @@ if ($latest) {
                     'total_questions' => $r->total_questions,
                     'wpm'             => $r->wpm,
                     'time_on_task'    => $r->time_on_task,
-                    'date'            => optional($r->created_at)->toDateString(),
+                    'date'            => optional($r->completed_at ?? $r->created_at)->toDateString(),
                 ])->values(),
             ],
         ], 200);
