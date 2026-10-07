@@ -133,6 +133,133 @@ class AnalyticsController extends Controller
     }
 
     /**
+     * GET /api/teachers/{teacherId}/dashboard-summary?test_type=pre_test|post_test
+     *
+     * Ang hugis ng sagot ay yung binabasa ng Flutter (Students tab, Phil-IRI
+     * panel, class chart): frustration/instructional/independent_count,
+     * class_breakdown[], at students[].
+     *
+     * Level ng bawat estudyante ay POOLED (kabuuang tamang salita / kabuuang
+     * salita; kabuuang tamang sagot / kabuuang tanong) -- parehong kuwenta
+     * ng progress-detail, kaya tugma ang mga kahon, chart, roster at profile.
+     * Natapos na story lang ang binibilang, at sinusunod ang test_type.
+     */
+    public function teacherDashboardSummary(Request $request, $teacherId)
+    {
+        try {
+            $testType = $request->query('test_type', 'post_test');
+            if (!in_array($testType, ['pre_test', 'post_test', 'all'], true)) {
+                $testType = 'post_test';
+            }
+
+            $students = User::whereHas('classes', function ($q) use ($teacherId) {
+                    $q->where('teacher_id', $teacherId);
+                })
+                ->with(['classes' => function ($q) use ($teacherId) {
+                    $q->where('teacher_id', $teacherId);
+                }])
+                ->get();
+
+            $progress = StudentProgress::whereIn('user_id', $students->pluck('id'))
+                ->where('is_reading_completed', true)
+                ->when($testType !== 'all', fn ($q) => $q->where('test_type', $testType))
+                ->get()
+                ->groupBy('user_id');
+
+            $counts   = ['frustration' => 0, 'instructional' => 0, 'independent' => 0];
+            $rows     = [];
+            $perClass = []; // class_id => ['class' => model, 'levels' => [...], 'attempts' => Collection]
+
+            foreach ($students as $student) {
+                $attempts = $progress[$student->id] ?? collect();
+                [$acc, $comp] = $this->pooled($attempts);
+
+                $level = $wrLevel = $compLevel = null;
+                if ($acc !== null && $comp !== null) {
+                    $level     = strtolower($this->philIri->calculateReadingLevel($acc, $comp));
+                    $wrLevel   = strtolower($this->philIri->wordReadingLevel($acc));
+                    $compLevel = strtolower($this->philIri->comprehensionLevel($comp));
+                    $counts[$level]++;
+                }
+
+                $first = $student->classes->first();
+
+                $rows[] = [
+                    'id'               => $student->id,
+                    'name'             => $student->name ?? $student->username,
+                    'lrn'              => $student->lrn ?? null,
+                    'grade_level'      => $student->grade_level ?? optional($first)->grade_level,
+                    'section'          => $student->section ?? optional($first)->section,
+                    'class_id'         => optional($first)->id,
+                    'classes'          => $student->classes->map(fn ($c) => [
+                        'id'          => $c->id,
+                        'name'        => $c->name,
+                        'grade_level' => $c->grade_level ?? null,
+                        'section'     => $c->section ?? null,
+                    ])->values(),
+                    'reading_level'    => $level,
+                    'avg_accuracy'     => $acc,
+                    'avg_comprehension'=> $comp,
+                    'wr_level'         => $wrLevel,
+                    'comp_level'       => $compLevel,
+                    'stories_read'     => $attempts->count(),
+                ];
+
+                foreach ($student->classes as $c) {
+                    $perClass[$c->id] ??= [
+                        'class'    => $c,
+                        'levels'   => ['frustration' => 0, 'instructional' => 0, 'independent' => 0],
+                        'attempts' => collect(),
+                    ];
+                    if ($level) {
+                        $perClass[$c->id]['levels'][$level]++;
+                    }
+                    $perClass[$c->id]['attempts'] = $perClass[$c->id]['attempts']->concat($attempts);
+                }
+            }
+
+            $classBreakdown = [];
+            foreach ($perClass as $classId => $info) {
+                $c = $info['class'];
+                [$cAcc, $cComp] = $this->pooled($info['attempts']);
+                $grade   = $c->grade_level ?? null;
+                $section = $c->section ?? null;
+
+                $classBreakdown[] = [
+                    'class_id'          => $classId,
+                    'label'             => $grade
+                        ? 'Grade ' . $grade . ($section ? ' - ' . $section : '')
+                        : ($c->name ?? 'Class ' . $classId),
+                    'grade_level'       => $grade,
+                    'section'           => $section,
+                    'frustration'       => $info['levels']['frustration'],
+                    'instructional'     => $info['levels']['instructional'],
+                    'independent'       => $info['levels']['independent'],
+                    'avg_accuracy'      => $cAcc,
+                    'avg_comprehension' => $cComp,
+                ];
+            }
+
+            return response()->json([
+                'success'            => true,
+                'test_type'          => $testType,
+                'frustration_count'  => $counts['frustration'],
+                'instructional_count'=> $counts['instructional'],
+                'independent_count'  => $counts['independent'],
+                'class_breakdown'    => $classBreakdown,
+                'students'           => $rows,
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'Failed to fetch dashboard summary',
+                'details' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * POOLED na accuracy/comprehension (kabuuang tamang salita / kabuuang
      * salita, kabuuang tamang sagot / kabuuang tanong) -- parehong kuwenta
      * ng StudentProgressController::detail(), hindi average ng mga %.
@@ -158,7 +285,7 @@ class AnalyticsController extends Controller
 
         return [(float) $acc, (float) $comp];
     }
-public function getMispronunciationData($teacherId)
+    public function mispronunciations($teacherId)
     {
         try {
             $logs = Mispronunciation::with(['student'])

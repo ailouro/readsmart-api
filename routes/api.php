@@ -69,6 +69,7 @@ Route::post('/user/change-password', [AuthController::class, 'changePassword']);
 Route::get('/teacher/{teacherId}/alerts', [App\Http\Controllers\AlertController::class, 'getFrustrationAlerts']);
 Route::get('/teachers/{id}/alerts', [AlertController::class, 'getFrustrationAlerts']);
 Route::post('/parents/enroll', [ParentController::class, 'enroll']);
+Route::get('/teachers/{teacherId}/dashboard-summary', [AnalyticsController::class, 'teacherDashboardSummary']);
 Route::get('/student/{student_id}/progress-detail', [StudentProgressController::class, 'detail']);
 Route::get('/parents/{parentId}/dashboard', [ParentController::class, 'dashboard']);
 Route::post('/student-self-corrections', [SelfCorrectionController::class, 'storeSelfCorrections']);
