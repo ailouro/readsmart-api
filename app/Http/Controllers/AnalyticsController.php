@@ -206,6 +206,13 @@ class AnalyticsController extends Controller
                     'wr_level'         => $wrLevel,
                     'comp_level'       => $compLevel,
                     'stories_read'     => $attempts->count(),
+                    // Totoong mic flag (galing sa Deepgram health ng app).
+                    'mic_suspect'      => $attempts->contains(
+                        fn ($a) => in_array($a->mic_status, ['no_audio', 'no_sound', 'no_transcript', 'unstable'], true)
+                    ),
+                    'mic_status'       => $attempts->pluck('mic_status')->filter()->unique()->values(),
+                    // Pooled WPM: kabuuang tamang salita / kabuuang oras (hindi average ng WPM).
+                    'avg_wpm'          => $this->pooledWpm($attempts),
                 ];
 
                 foreach ($student->classes as $c) {
@@ -288,6 +295,21 @@ class AnalyticsController extends Controller
 
         return [(float) $acc, (float) $comp];
     }
+    /**
+     * Pooled WPM. Hindi binibilang ang attempts na wala pang 5 segundo ang oras
+     * (hindi makabuluhan ang WPM doon) o walang total_words.
+     */
+    private function pooledWpm($attempts): ?float
+    {
+        $valid = $attempts->filter(fn ($a) => (int) $a->time_on_task >= 5 && (int) $a->total_words > 0);
+        $secs  = (int) $valid->sum('time_on_task');
+        if ($secs <= 0) {
+            return null;
+        }
+        $correct = (int) $valid->sum(fn ($a) => max(0, (int) $a->total_words - (int) $a->miscues_count));
+        return round(($correct / $secs) * 60, 1);
+    }
+
     public function mispronunciations($teacherId)
     {
         try {

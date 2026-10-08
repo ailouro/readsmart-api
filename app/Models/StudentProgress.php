@@ -31,6 +31,9 @@ class StudentProgress extends Model
     'word_reading_score_pct',
     'reading_profile',
     'struggled_words',
+    'mic_status',
+    'mic_peak_level',
+    'asr_drops',
     'started_at',    
     'completed_at'
 ];

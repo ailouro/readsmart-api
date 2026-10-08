@@ -133,12 +133,50 @@ class StudentProgressController extends Controller
     {
         $validated = $request->validated();
 
-        // 1. Kuhanin ang kabuuang salita sa kwento mula sa audio_scripts
-        $totalWords = $this->getStoryTotalWords($validated['story_id']);
-        
-        // 2. Kuhanin ang bilang ng miscues batay sa accuracy % o ibinigay ng request
+        $key = [
+            'user_id'   => $validated['user_id'],
+            'story_id'  => $validated['story_id'],
+            'test_type' => $validated['test_type'],
+        ];
+        $existing = StudentProgress::where($key)->first();
+
+        // May dalang datos ng pagbasa ba ang request na ito? (Ang POST mula sa
+        // reading screen ay meron; ang POST mula sa quiz ay baka wala.)
+        $hasReadingData = $request->filled('total_words')
+            || $request->filled('miscues_count')
+            || $request->filled('correct_words');
+
         $accuracy = (float) $validated['oral_fluency_accuracy'];
-        $miscues  = $request->input('miscues_count', max(0, (int) round($totalWords * (1 - ($accuracy / 100)))));
+        $seconds  = (int) $validated['time_on_task'];
+
+        if (!$hasReadingData && $existing && (int) $existing->total_words > 0) {
+            // Quiz POST na walang datos ng pagbasa: HUWAG palitan ang totoong
+            // total_words/miscues/oras na nai-save na ng reading screen.
+            $totalWords = (int) $existing->total_words;
+            $miscues    = (int) $existing->miscues_count;
+            if ((int) $existing->time_on_task > 0) {
+                $seconds = (int) $existing->time_on_task;
+            }
+        } else {
+            // 1. Ang bilang ng salita na MISMONG nabasa/na-grade ng app ang
+            //    pinagkakatiwalaan. Ang bilang mula sa audio_scripts ay fallback
+            //    lang (iba ang paraan ng bilang kaya hindi tugma sa app).
+            $clientWords = (int) $request->input('total_words', 0);
+            $totalWords  = $clientWords > 0
+                ? $clientWords
+                : $this->getStoryTotalWords($validated['story_id']);
+
+            // 2. Totoong miscues galing sa app; kung wala, mula sa correct_words;
+            //    huling opsyon lang ang hula mula sa accuracy %.
+            if ($request->filled('miscues_count')) {
+                $miscues = (int) $request->input('miscues_count');
+            } elseif ($request->filled('correct_words') && $totalWords > 0) {
+                $miscues = $totalWords - (int) $request->input('correct_words');
+            } else {
+                $miscues = (int) round($totalWords * (1 - ($accuracy / 100)));
+            }
+            $miscues = max(0, min($miscues, $totalWords));
+        }
 
         // 3. Compute detailed Phil-IRI metrics
         $breakdown = $this->philIriService->getDetailedBreakdown(
@@ -146,30 +184,38 @@ class StudentProgressController extends Controller
             $miscues,
             (int) $validated['quiz_score'],
             (int) $validated['total_questions'],
-            (int) $validated['time_on_task']
+            $seconds
         );
 
+        // Masyadong maikli ang oras para maging makabuluhan ang WPM.
+        if ($breakdown['time_on_task_seconds'] < 5) {
+            $breakdown['wpm'] = 0;
+        }
+
         // 4. I-save sa database
-        $progress = StudentProgress::updateOrCreate(
-            [
-                'user_id'   => $validated['user_id'],
-                'story_id'  => $validated['story_id'],
-                'test_type' => $validated['test_type'], 
-            ],
-            [
-                'total_words'             => $breakdown['total_words'],
-                'miscues_count'           => $breakdown['miscues_count'],
-                'quiz_score'              => $breakdown['quiz_score'],
-                'total_questions'         => $breakdown['total_questions'],
-                'oral_fluency_accuracy'   => $breakdown['word_reading_score_pct'],
-                'word_reading_score_pct'  => $breakdown['word_reading_score_pct'],
-                'time_on_task'            => $breakdown['time_on_task_seconds'],
-                'wpm'                     => $breakdown['wpm'], 
-                'comprehension_score_pct' => $breakdown['comprehension_score_pct'],
-                'reading_level'           => $breakdown['final_reading_level'],
-                'is_reading_completed'   => true,
-            ]
-        );
+        $values = [
+            'total_words'             => $breakdown['total_words'],
+            'miscues_count'           => $breakdown['miscues_count'],
+            'quiz_score'              => $breakdown['quiz_score'],
+            'total_questions'         => $breakdown['total_questions'],
+            'oral_fluency_accuracy'   => $breakdown['word_reading_score_pct'],
+            'word_reading_score_pct'  => $breakdown['word_reading_score_pct'],
+            'time_on_task'            => $breakdown['time_on_task_seconds'],
+            'wpm'                     => $breakdown['wpm'],
+            'comprehension_score_pct' => $breakdown['comprehension_score_pct'],
+            'reading_level'           => $breakdown['final_reading_level'],
+            'is_reading_completed'    => true,
+        ];
+
+        // Mic health: i-update lang kapag may dala ang request (para hindi
+        // mabura ng quiz POST ang datos ng reading POST).
+        foreach (['mic_status', 'mic_peak_level', 'asr_drops'] as $f) {
+            if ($request->filled($f)) {
+                $values[$f] = $request->input($f);
+            }
+        }
+
+        $progress = StudentProgress::updateOrCreate($key, $values);
 
         foreach ($validated['self_corrected_words'] ?? [] as $w) {
             SelfCorrection::create([
