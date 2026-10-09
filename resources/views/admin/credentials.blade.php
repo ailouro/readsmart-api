@@ -52,6 +52,7 @@
             .slip { border-color: #000; }
         }
     </style>
+    @include('admin.partials.background')
 </head>
 <body>
 <div class="wrap">
@@ -115,4 +116,4 @@
     @endif
 </div>
 </body>
-</html>
+</html> 

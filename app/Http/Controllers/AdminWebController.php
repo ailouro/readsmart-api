@@ -438,6 +438,11 @@ class AdminWebController extends Controller
                 continue;
             }
 
+            if (!preg_match('/^\d{1,12}$/', $lrn)) {
+                $errors[] = "Row {$rowNum}: LRN '{$lrn}' must be digits only, up to 12 digits — skipped.";
+                continue;
+            }
+
             if (isset($seenLrns[$lrn])) {
                 $errors[] = "Row {$rowNum}: LRN {$lrn} is duplicated within this batch (also on row {$seenLrns[$lrn]}) — skipped.";
                 continue;
@@ -739,6 +744,11 @@ class AdminWebController extends Controller
                 continue;
             }
 
+            if (!preg_match('/^\d{1,12}$/', $childLrn)) {
+                $errors[] = "Row {$rowNum}: child's LRN '{$childLrn}' must be digits only, up to 12 digits — skipped.";
+                continue;
+            }
+
             $child = User::where('lrn', $childLrn)->where('role', 'student')->first();
             if (!$child) {
                 $errors[] = "Row {$rowNum}: no student account found with LRN {$childLrn}. "
@@ -811,9 +821,10 @@ class AdminWebController extends Controller
     public function linkChild(Request $request, $id)
     {
         $data = $request->validate([
-            'child_lrn' => 'required|string',
+            'child_lrn' => 'required|digits_between:1,12',
         ], [
             'child_lrn.required' => "Please enter the child's LRN.",
+            'child_lrn.digits_between' => "The child's LRN must be digits only, up to 12 digits.",
         ]);
 
         $parent = User::where('role', 'parent')->findOrFail($id);

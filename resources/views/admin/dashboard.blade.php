@@ -2,6 +2,10 @@
 
 @section('title', 'Admin Dashboard')
 
+@push('styles')
+    @include('admin.partials.background')
+@endpush
+
 @section('content')
         {{-- ================= STUDENTS ================= --}}
         @if ($tab === 'students')
@@ -169,6 +173,9 @@
                                     <form method="POST" action="{{ route('admin.parents.link-child', $p->id) }}" class="inline-form" style="margin-top:6px;">
                                         @csrf
                                         <input type="text" name="child_lrn" placeholder="Add child's LRN" required
+                                               maxlength="12" inputmode="numeric" pattern="\d{1,12}"
+                                               title="Digits only, up to 12 digits"
+                                               oninput="this.value=this.value.replace(/\D/g,'')"
                                                style="padding:5px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:13px; width:150px;">
                                         <button type="submit" class="btn btn-sm">+ Add child</button>
                                     </form>
@@ -289,6 +296,70 @@
             },
         };
 
+        // Columns that only accept digits (LRN is at most 12 digits).
+        const DIGIT_COLUMNS = { lrn: 12, child_lrn: 12 };
+
+        function isDigitCol(col) {
+            return Object.prototype.hasOwnProperty.call(DIGIT_COLUMNS, col);
+        }
+
+        // Red outline when a cell isn't 1-12 digits (covers pasted values).
+        function validateDigitCell(field) {
+            const max = DIGIT_COLUMNS[field.dataset.col];
+            const v = field.value.trim();
+            const bad = v !== '' && !new RegExp('^\\d{1,' + max + '}$').test(v);
+            field.style.outline = bad ? '2px solid #dc2626' : '';
+            field.title = bad ? 'LRN must be digits only, up to ' + max + ' digits' : '';
+        }
+
+        // Brief red flash + hint, without touching what's already typed.
+        function flashDigitWarning(field) {
+            const oldPlaceholder = field.dataset.basePlaceholder || field.placeholder;
+            field.dataset.basePlaceholder = oldPlaceholder;
+            field.style.outline = '2px solid #dc2626';
+            field.placeholder = 'numbers only';
+            clearTimeout(field._flashTimer);
+            field._flashTimer = setTimeout(() => {
+                field.placeholder = oldPlaceholder;
+                validateDigitCell(field);
+            }, 2000);
+        }
+
+        // Rejected value (contained letters/symbols): empty the cell and warn.
+        function rejectDigitCell(field) {
+            field.value = '';
+            flashDigitWarning(field);
+        }
+
+        function setupDigitField(field) {
+            const max = DIGIT_COLUMNS[field.dataset.col];
+            // Letters/symbols never get into the box while typing.
+            field.addEventListener('beforeinput', (e) => {
+                if (e.data && /\D/.test(e.data)) {
+                    e.preventDefault();
+                    flashDigitWarning(field);
+                }
+            });
+            // Single-value paste containing a letter is refused entirely.
+            field.addEventListener('paste', (e) => {
+                const text = (e.clipboardData || window.clipboardData).getData('text') || '';
+                if (text.includes('\t') || text.includes('\n')) return; // multi-cell paste -> setCellValue checks each cell
+                if (/\D/.test(text.trim().replace(/[\s-]/g, ''))) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    flashDigitWarning(field);
+                }
+            });
+            field.maxLength = max;
+            field.inputMode = 'numeric';
+            field.autocomplete = 'off';
+            field.placeholder = 'up to ' + max + ' digits';
+            field.addEventListener('input', () => {
+                field.value = field.value.replace(/\D/g, '');
+                validateDigitCell(field);
+            });
+        }
+
         function gridColumns(table) {
             return table.dataset.columns.split(',');
         }
@@ -354,6 +425,16 @@
             if (el.tagName === 'SELECT') {
                 el.value = matchOption(el, val);
                 refreshDependents(table, tr);
+            } else if (isDigitCol(el.dataset.col)) {
+                // pasted cells: a value with ANY letter/symbol is rejected outright
+                // (never partially kept). Spaces/dashes are ignored; digits are never cut.
+                const raw = String(val == null ? '' : val).replace(/[\s-]/g, '');
+                if (/\D/.test(raw)) {
+                    rejectDigitCell(el);
+                } else {
+                    el.value = raw;
+                    validateDigitCell(el);
+                }
             } else {
                 el.value = val;
             }
@@ -381,6 +462,7 @@
                     field.type = 'text';
                     field.dataset.col = col;
                     field.value = values && values[col] ? values[col] : '';
+                    if (isDigitCol(col)) setupDigitField(field);
                 }
                 field.addEventListener('paste', (e) => handleGridPaste(e, table, tr, field));
 

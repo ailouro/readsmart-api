@@ -16,7 +16,7 @@ class AdminController extends Controller
         $request->validate([
             'first_name' => 'required',
             'last_name' => 'required',
-            'lrn' => 'required|unique:users',
+            'lrn' => 'required|digits_between:1,12|unique:users',
             'grade_level' => 'required',
             'section' => 'required'
         ]);
@@ -205,6 +205,14 @@ class AdminController extends Controller
         if (!$parent) {
             return response(
                 '<h2>Cannot approve — no parent account found for ' . e($req->parent_email) . '.</h2>
+                 <a href="' . $backUrl . '">Back</a>',
+                422
+            )->header('Content-Type', 'text/html');
+        }
+
+        if (!preg_match('/^\d{1,12}$/', (string) $req->lrn)) {
+            return response(
+                '<h2>Cannot approve — LRN ' . e($req->lrn) . ' must be digits only, up to 12 digits.</h2>
                  <a href="' . $backUrl . '">Back</a>',
                 422
             )->header('Content-Type', 'text/html');

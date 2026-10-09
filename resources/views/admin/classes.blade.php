@@ -1,14 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 @extends('admin.layout')
 
 @section('title', 'Classes')
 
 @push('styles')
+@include('admin.partials.background')
 <style>
     /* ---------- Create class ---------- */
     .create-class { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
