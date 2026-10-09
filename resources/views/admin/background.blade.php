@@ -5,7 +5,7 @@
     html { min-height: 100%; }
     body {
         background-color: #f8faf6 !important;
-        background-image: url('{{ asset('images/admin-bg.png') }}') !important;
+        background-image: url('{{ asset('public/images/admin-bg.png') }}') !important;
         background-repeat: no-repeat !important;
         background-position: center !important;
         background-size: cover !important;

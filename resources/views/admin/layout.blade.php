@@ -11,7 +11,7 @@
             color: #0f172a;
             /* Solid color first as a fallback in case the image fails to load. */
             background-color: #f1f5f9;
-            background-image: url('D:\xampp\htdocs\laravel\readsmart\backend\storage\admin-bg.png');
+            background-image: url('{{ asset('public/images/admin-bg.png') }}');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
