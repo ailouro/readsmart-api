@@ -198,9 +198,9 @@ class StudentProgressController extends Controller
         );
 
         // Masyadong maikli ang oras para maging makabuluhan ang WPM.
-        if ($breakdown['time_on_task_seconds'] < 5) {
-            $breakdown['wpm'] = 0;
-        }
+        if ($breakdown['wpm'] > 250) {
+    $breakdown['wpm'] = 0;
+}
 
         // 4. I-save sa database
         $values = [
