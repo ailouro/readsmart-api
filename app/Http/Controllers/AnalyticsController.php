@@ -175,12 +175,14 @@ class AnalyticsController extends Controller
                 [$acc, $comp] = $this->pooled($attempts);
 
                 $level = $wrLevel = $compLevel = null;
+                if ($acc !== null)  $wrLevel   = strtolower($this->philIri->wordReadingLevel($acc));
+                if ($comp !== null) $compLevel = strtolower($this->philIri->comprehensionLevel($comp));
                 if ($acc !== null && $comp !== null) {
-                    $level     = strtolower($this->philIri->calculateReadingLevel($acc, $comp));
-                    $wrLevel   = strtolower($this->philIri->wordReadingLevel($acc));
-                    $compLevel = strtolower($this->philIri->comprehensionLevel($comp));
+                    $level = strtolower($this->philIri->calculateReadingLevel($acc, $comp));
                     $counts[$level]++;
                 }
+                $status = ($acc === null && $comp === null) ? 'not_started'
+                        : (($acc === null || $comp === null) ? 'incomplete' : 'complete');
 
                 $first = $student->classes->first();
 
@@ -205,7 +207,10 @@ class AnalyticsController extends Controller
                     'avg_comprehension'=> $comp,
                     'wr_level'         => $wrLevel,
                     'comp_level'       => $compLevel,
-                    'stories_read'     => $attempts->count(),
+                    'status'           => $status,
+                    'stories_read'     => $attempts->filter(
+                        fn ($a) => $this->validWr($a) || $this->validComp($a)
+                    )->count(),
                     // Totoong mic flag (galing sa Deepgram health ng app).
                     'mic_suspect'      => $attempts->contains(
                         fn ($a) => in_array($a->mic_status, ['no_audio', 'no_sound', 'no_transcript', 'unstable'], true)
@@ -269,31 +274,48 @@ class AnalyticsController extends Controller
         }
     }
 
+    /** May totoong Word Reading ba ang attempt na ito? (0 / walang laman = hindi nagbasa) */
+    private function validWr($a): bool
+    {
+        $p = $a->word_reading_score_pct ?? $a->oral_fluency_accuracy;
+        return $p !== null && (float) $p > 0 && $a->reading_level !== 'not_started';
+    }
+
+    /** May totoong sinagot sa quiz ba? */
+    private function validComp($a): bool
+    {
+        return (int) $a->total_questions > 0 && (int) $a->quiz_score > 0;
+    }
+
     /**
-     * POOLED na accuracy/comprehension (kabuuang tamang salita / kabuuang
-     * salita, kabuuang tamang sagot / kabuuang tanong) -- parehong kuwenta
-     * ng StudentProgressController::detail(), hindi average ng mga %.
-     * Kung walang total_words (lumang records), average ang fallback.
+     * POOLED na accuracy/comprehension, mga valid na attempt lang.
+     * Kapag wala ni isang valid, null ang ibabalik (hindi 0).
      */
     private function pooled($attempts): array
     {
-        if ($attempts->isEmpty()) {
-            return [null, null];
+        $wrSet = $attempts->filter(fn ($a) => $this->validWr($a));
+        $cpSet = $attempts->filter(fn ($a) => $this->validComp($a));
+
+        $acc = null;
+        if ($wrSet->isNotEmpty()) {
+            $words   = (int) $wrSet->sum('total_words');
+            $miscues = (int) $wrSet->sum('miscues_count');
+            $acc = $words > 0
+                ? round((max(0, $words - $miscues) / $words) * 100, 1)
+                : round((float) $wrSet->avg(fn ($a) => $a->word_reading_score_pct ?? $a->oral_fluency_accuracy), 1);
         }
 
-        $words   = (int) $attempts->sum('total_words');
-        $miscues = (int) $attempts->sum('miscues_count');
-        $quizC   = (int) $attempts->sum('quiz_score');
-        $quizQ   = (int) $attempts->sum('total_questions');
+        $comp = null;
+        if ($cpSet->isNotEmpty()) {
+            $quizC = (int) $cpSet->sum('quiz_score');
+            $quizQ = (int) $cpSet->sum('total_questions');
+            $comp  = round(($quizC / $quizQ) * 100);
+        }
 
-        $acc = $words > 0
-            ? round((max(0, $words - $miscues) / $words) * 100, 1)
-            : round((float) $attempts->avg('oral_fluency_accuracy'), 1);
-        $comp = $quizQ > 0
-            ? round(($quizC / $quizQ) * 100)
-            : round((float) $attempts->avg('comprehension_score_pct'));
-
-        return [(float) $acc, (float) $comp];
+        return [
+            $acc  === null ? null : (float) $acc,
+            $comp === null ? null : (float) $comp,
+        ];
     }
     /**
      * Pooled WPM. Hindi binibilang ang attempts na wala pang 5 segundo ang oras
@@ -301,7 +323,11 @@ class AnalyticsController extends Controller
      */
     private function pooledWpm($attempts): ?float
     {
-        $valid = $attempts->filter(fn ($a) => (int) $a->time_on_task >= 5 && (int) $a->total_words > 0);
+        $valid = $attempts->filter(fn ($a) =>
+            (int) $a->time_on_task >= 5
+            && (int) $a->total_words > 0
+            && ((int) $a->total_words / (int) $a->time_on_task * 60) <= 250
+        );
         $secs  = (int) $valid->sum('time_on_task');
         if ($secs <= 0) {
             return null;
