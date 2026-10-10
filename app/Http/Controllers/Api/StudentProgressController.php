@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use App\Models\SchoolClass;
 use Illuminate\Support\Facades\DB;
 
+
 class StudentProgressController extends Controller
 {
     protected PhilIriService $philIriService;
@@ -55,29 +56,38 @@ class StudentProgressController extends Controller
                 ->get();
 
             $records = $rows->map(function ($p) {
-                $total   = (int) ($p->total_words ?? 0);
-                $miscues = (int) ($p->miscues_count ?? 0);
-                $wordPct = $p->word_reading_score_pct ?? $p->oral_fluency_accuracy;
+    $total   = (int) ($p->total_words ?? 0);
+    $miscues = (int) ($p->miscues_count ?? 0);
+    $wordPct = $p->word_reading_score_pct ?? $p->oral_fluency_accuracy;
 
-                return [
-                    'id'                      => $p->id,
-                    'story_id'                => $p->story_id,
-                    'story_title'             => optional($p->story)->title ?? 'Untitled story',
-                    'test_type'               => $p->test_type,
-                    'total_words'             => $total,
-                    'miscues_count'           => $miscues,
-                    'correct_words_count'     => max(0, $total - $miscues),
-                    'oral_fluency_accuracy'   => $wordPct,
-                    'word_reading_score_pct'  => $wordPct,
-                    'quiz_score'              => (int) ($p->quiz_score ?? 0),
-                    'total_questions'         => (int) ($p->total_questions ?? 0),
-                    'comprehension_score_pct' => $p->comprehension_score_pct,
-                    'wpm'                     => $p->wpm,
-                    'time_on_task'            => (int) ($p->time_on_task ?? 0),
-                    'reading_level'           => $p->reading_level,
-                    'date_completed'          => $p->completed_at ?? $p->updated_at,
-                ];
-            })->values();
+    // (1) IDINAGDAG: kung walang comprehension % pero may quiz, kuwentahin
+    $compPct = $p->comprehension_score_pct;
+    if (($compPct === null || (float) $compPct == 0)
+        && (int) $p->total_questions > 0
+        && (int) $p->quiz_score > 0) {
+        $compPct = round($p->quiz_score / $p->total_questions * 100, 1);
+    }
+
+    return [
+        'id'                      => $p->id,
+        'story_id'                => $p->story_id,
+        'story_title'             => optional($p->story)->title ?? 'Untitled story',
+        'test_type'               => $p->test_type,
+        'total_words'             => $total,
+        'miscues_count'           => $miscues,
+        'correct_words_count'     => max(0, $total - $miscues),
+        'oral_fluency_accuracy'   => $wordPct,
+        'word_reading_score_pct'  => $wordPct,
+        'quiz_score'              => (int) ($p->quiz_score ?? 0),
+        'total_questions'         => (int) ($p->total_questions ?? 0),
+        'comprehension_score_pct' => $compPct,                     // (2) PINALITAN
+        'counts_estimated'        => (bool) $p->counts_estimated,  // (2) IDINAGDAG
+        'wpm'                     => $p->wpm,
+        'time_on_task'            => (int) ($p->time_on_task ?? 0),
+        'reading_level'           => $p->reading_level,
+        'date_completed'          => $p->completed_at ?? $p->updated_at,
+    ];
+})->values();
 
             $totals = [];
             foreach (['pre_test', 'post_test'] as $type) {
@@ -163,8 +173,8 @@ class StudentProgressController extends Controller
             //    lang (iba ang paraan ng bilang kaya hindi tugma sa app).
             $clientWords = (int) $request->input('total_words', 0);
             $totalWords  = $clientWords > 0
-                ? $clientWords
-                : $this->getStoryTotalWords($validated['story_id']);
+    ? $clientWords
+    : $this->philIriService->storyWordCount((int) $validated['story_id']);
 
             // 2. Totoong miscues galing sa app; kung wala, mula sa correct_words;
             //    huling opsyon lang ang hula mula sa accuracy %.
@@ -237,37 +247,5 @@ class StudentProgressController extends Controller
     /**
      * Helper Function para makuha ang kabuuang salita sa isang kwento
      */
-    private function getStoryTotalWords(int $storyId): int
-    {
-        $scripts = DB::table('story_pages')
-            ->where('story_id', $storyId)
-            ->orderBy('page_number')
-            ->pluck('audio_scripts');
-
-        if ($scripts->isEmpty()) return 0;
-
-        $flatten = function ($v) use (&$flatten) {
-            if (is_string($v)) {
-                $d = json_decode($v, true);
-                return is_array($d) ? $flatten($d) : [$v];
-            }
-            if (is_array($v)) {
-                return collect($v)->flatMap(fn ($x) => $flatten($x))->all();
-            }
-            return [];
-        };
-
-        $words = 0;
-        foreach ($scripts as $raw) {
-            $seen = [];
-            foreach ($flatten($raw) as $line) {
-                $clean = trim(preg_replace('/\s+/', ' ', strip_tags((string) $line)));
-                $key   = strtolower(preg_replace('/\s+/', '', $clean));
-                if ($clean === '' || isset($seen[$key])) continue;
-                $seen[$key] = true;
-                $words += count(explode(' ', $clean));
-            }
-        }
-        return $words;
-    }
+    
 }

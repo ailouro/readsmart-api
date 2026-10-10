@@ -1,6 +1,7 @@
 <?php
-
 namespace App\Services;
+
+use Illuminate\Support\Facades\DB;
 
 class PhilIriService
 {
@@ -58,4 +59,38 @@ class PhilIriService
             'final_reading_level'     => strtolower($finalLevel),
         ];
     }
+
+    public function storyWordCount(int $storyId): int
+{
+    $scripts = DB::table('story_pages')
+        ->where('story_id', $storyId)
+        ->orderBy('page_number')
+        ->pluck('audio_scripts');
+
+    if ($scripts->isEmpty()) return 0;
+
+    $flatten = function ($v) use (&$flatten) {
+        if (is_string($v)) {
+            $d = json_decode($v, true);
+            return is_array($d) ? $flatten($d) : [$v];
+        }
+        if (is_array($v)) {
+            return collect($v)->flatMap(fn ($x) => $flatten($x))->all();
+        }
+        return [];
+    };
+
+    $words = 0;
+    foreach ($scripts as $raw) {
+        $seen = [];
+        foreach ($flatten($raw) as $line) {
+            $clean = trim(preg_replace('/\s+/', ' ', strip_tags((string) $line)));
+            $key   = strtolower(preg_replace('/\s+/', '', $clean));
+            if ($clean === '' || isset($seen[$key])) continue;
+            $seen[$key] = true;
+            $words += count(explode(' ', $clean));
+        }
+    }
+    return $words;
+}
 }

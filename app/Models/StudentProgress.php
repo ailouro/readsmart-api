@@ -35,7 +35,9 @@ class StudentProgress extends Model
     'mic_peak_level',
     'asr_drops',
     'started_at',    
+    'counts_estimated'=> 'boolean',
     'completed_at'
+    
 ];
 
     protected static function boot()
@@ -94,37 +96,46 @@ class StudentProgress extends Model
      * The story's own `id` is preserved; the progress fields are merged on top.
      */
     public static function completedStoriesFor($userId)
-    {
-        return static::query()
-            ->where('user_id', $userId)
-            ->where('is_reading_completed', true)
-            ->whereHas('story')
-            ->with(['story.pages', 'story.quiz'])
-            ->orderByDesc('updated_at')
-            ->get()
-            ->unique('story_id')
-            ->map(function ($p) {
-                $totalWords = $p->total_words ?? 0;
-                $miscues = $p->miscues_count ?? 0;
-                $correctWords = max(0, $totalWords - $miscues);
+{
+    return static::query()
+        ->where('user_id', $userId)
+        ->where('is_reading_completed', true)
+        ->whereHas('story')
+        ->with(['story.pages', 'story.quiz'])
+        ->orderByDesc('updated_at')
+        ->get()
+        ->unique('story_id')
+        ->map(function ($p) {
+            $totalWords = $p->total_words ?? 0;
+            $miscues = $p->miscues_count ?? 0;
+            $correctWords = max(0, $totalWords - $miscues);
 
-                return array_merge($p->story->toArray(), [
-                    'progress_id'             => $p->id,
-                    'test_type'               => $p->test_type,
-                    // Computation Breakdown Details para sa App UI
-                    'total_words'             => $totalWords,
-                    'miscues_count'           => $miscues,
-                    'correct_words_count'     => $correctWords,
-                    'word_reading_score_pct'  => $p->word_reading_score_pct,
-                    'quiz_score'              => $p->quiz_score,
-                    'total_questions'         => $p->total_questions,
-                    'comprehension_score_pct' => $p->comprehension_score_pct,
-                    'time_on_task_seconds'    => $p->time_on_task,
-                    'wpm'                     => $p->wpm,
-                    'reading_level'           => $p->reading_level,
-                    'date_completed'          => $p->completed_at ?? $p->updated_at,
-                ]);
-            })
-            ->values();
-    }
+            // Comprehension %: kung walang laman pero may quiz, kuwentahin
+            $compPct = $p->comprehension_score_pct;
+            if (($compPct === null || (float) $compPct == 0)
+                && (int) $p->total_questions > 0
+                && (int) $p->quiz_score > 0) {
+                $compPct = round($p->quiz_score / $p->total_questions * 100, 1);
+            }
+
+            return array_merge($p->story->toArray(), [
+                'progress_id'             => $p->id,
+                'test_type'               => $p->test_type,
+                // Computation Breakdown Details para sa App UI
+                'total_words'             => $totalWords,
+                'miscues_count'           => $miscues,
+                'correct_words_count'     => $correctWords,
+                'word_reading_score_pct'  => $p->word_reading_score_pct,
+                'quiz_score'              => $p->quiz_score,
+                'total_questions'         => $p->total_questions,
+                'comprehension_score_pct' => $compPct,
+                'counts_estimated'        => (bool) $p->counts_estimated,
+                'time_on_task_seconds'    => $p->time_on_task,
+                'wpm'                     => $p->wpm,
+                'reading_level'           => $p->reading_level,
+                'date_completed'          => $p->completed_at ?? $p->updated_at,
+            ]);
+        })
+        ->values();
+}
 }
