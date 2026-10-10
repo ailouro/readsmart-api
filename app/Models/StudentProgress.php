@@ -34,9 +34,9 @@ class StudentProgress extends Model
     'mic_status',
     'mic_peak_level',
     'asr_drops',
-    'started_at',    
-    'counts_estimated'=> 'boolean',
-    'completed_at'
+    'started_at',
+    'completed_at',
+    'counts_estimated',
     
 ];
 
