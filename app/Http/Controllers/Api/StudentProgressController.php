@@ -65,6 +65,15 @@ class StudentProgressController extends Controller
                 $miscues = (int) ($p->miscues_count ?? 0);
                 $wordPct = $p->word_reading_score_pct ?? $p->oral_fluency_accuracy;
 
+                // WPM: Phil-IRI formula (salita / segundo x 60). Kinukuwenta mula
+                // sa total_words at time_on_task para kahit lumang rows na may
+                // 0/NULL na wpm ay may lumabas. Kung hindi makuwenta, ang
+                // naka-save na lang ang gagamitin.
+                $wpm = $this->philIriService->wordsPerMinute($total, (int) ($p->time_on_task ?? 0));
+                if ($wpm <= 0) {
+                    $wpm = (float) ($p->wpm ?? 0);
+                }
+
                 // Kung walang comprehension % pero may quiz, kuwentahin
                 $compPct = $p->comprehension_score_pct;
                 if (($compPct === null || (float) $compPct == 0)
@@ -87,7 +96,7 @@ class StudentProgressController extends Controller
                     'total_questions'         => (int) ($p->total_questions ?? 0),
                     'comprehension_score_pct' => $compPct,
                     'counts_estimated'        => (bool) $p->counts_estimated,
-                    'wpm'                     => $p->wpm,
+                    'wpm'                     => (int) round($wpm),
                     'time_on_task'            => (int) ($p->time_on_task ?? 0),
                     'reading_level'           => $p->reading_level,
                     'date_completed'          => $p->completed_at ?? $p->updated_at,

@@ -22,6 +22,21 @@ class PhilIriService
         return 'Frustration';
     }
 
+    /**
+     * Phil-IRI reading speed:
+     *   WPM = (No. of words read / Reading time in seconds) x 60
+     * Halimbawa: 103 salita / 90 segundo x 60 = 69 WPM.
+     * Ang "words read" ay ang kabuuang salita ng passage na binasa.
+     * Ibinabalik ang 0 kapag kulang ang datos (walang salita, o mas mababa sa
+     * 5 segundo) o imposibleng bilis (> 250), para hindi mag-imbento ng numero.
+     */
+    public function wordsPerMinute(int $words, int $seconds): float
+    {
+        if ($words <= 0 || $seconds < 5) return 0;
+        $wpm = ($words / $seconds) * 60;
+        return $wpm > 250 ? 0 : round($wpm, 1);
+    }
+
     public function calculateReadingLevel(float $oralAccuracy, float $comprehensionPct): string
     {
         $wr = $this->wordReadingLevel($oralAccuracy);
@@ -45,8 +60,7 @@ class PhilIriService
 
     $oralAccuracy = $hasWR   ? round(($correctWords / $totalWords) * 100, 1) : null;
     $compPct      = $hasComp ? round(($quizScore / $totalQuestions) * 100, 1) : null;
-    $wpm          = ($hasWR && $seconds > 0) ? round(($correctWords / $seconds) * 60, 1) : 0;
-    if ($wpm > 250) $wpm = 0;   // imposibleng bilis, hindi totoong pagbasa
+    $wpm          = $hasWR ? $this->wordsPerMinute($totalWords, $seconds) : 0;
 
     $wrLevel   = $hasWR   ? $this->wordReadingLevel($oralAccuracy) : 'not_started';
     $compLevel = $hasComp ? $this->comprehensionLevel($compPct)    : 'not_started';
