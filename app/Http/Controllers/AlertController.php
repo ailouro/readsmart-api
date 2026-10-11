@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\StudentProgress;
+use App\Models\Mispronunciation;
 use Illuminate\Support\Facades\DB;
 
 class AlertController extends Controller
@@ -124,6 +125,31 @@ class AlertController extends Controller
         $topWords = [];
         foreach (array_slice($wordCounts, 0, 15, true) as $word => $count) {
             $topWords[] = ['word' => $word, 'count' => $count];
+        }
+
+        // Mas maaasahang source: ang mispronunciations log, na may kasamang
+        // story kung saan na-miss ang bawat salita. (Ang `struggled_words` na
+        // column sa student_progress ay hindi na-save ng saveProgress.)
+        $mispros = Mispronunciation::with('story:id,title')
+            ->where('student_id', $student->id)
+            ->get();
+        if ($mispros->isNotEmpty()) {
+            $topWords = $mispros
+                ->groupBy(fn ($m) => strtolower(trim((string) $m->word)))
+                ->filter(fn ($g, $w) => $w !== '')
+                ->map(fn ($g, $w) => [
+                    'word'    => $w,
+                    'count'   => $g->count(),
+                    'stories' => $g->groupBy('story_id')->map(fn ($s) => [
+                        'story_id' => $s->first()->story_id,
+                        'title'    => optional($s->first()->story)->title ?? 'Untitled story',
+                        'count'    => $s->count(),
+                    ])->values()->all(),
+                ])
+                ->sortByDesc('count')
+                ->take(15)
+                ->values()
+                ->all();
         }
 
         $latest = $rows->first();

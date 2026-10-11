@@ -104,6 +104,24 @@ class MiscueController extends Controller
     }
 
     /**
+     * Get mispronunciations log for ONE student, with the story each word
+     * was missed in (para makita ng bata, teacher at magulang kung saang
+     * story nahirapan). Route: GET /api/students/{studentId}/mispronunciations
+     */
+    public function getStudentMispronunciations($studentId)
+    {
+        $logs = Mispronunciation::with('story:id,title')
+            ->where('student_id', $studentId)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => $logs,
+        ], 200);
+    }
+
+    /**
      * Get mispronunciations log for a teacher's students.
      */
     public function getTeacherMispronunciations($teacherId)
