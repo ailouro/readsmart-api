@@ -243,7 +243,8 @@ class AnalyticsController extends Controller
                 $classBreakdown[] = [
                     'class_id'          => $classId,
                     'label'             => $grade
-                        ? 'Grade ' . $grade . ($section ? ' - ' . $section : '')
+                        ? (stripos((string) $grade, 'grade') === 0 ? $grade : 'Grade ' . $grade)
+                            . ($section ? ' - ' . $section : '')
                         : ($c->name ?? 'Class ' . $classId),
                     'grade_level'       => $grade,
                     'section'           => $section,
