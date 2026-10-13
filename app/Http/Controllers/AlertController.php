@@ -183,6 +183,8 @@ if ($latest) {
                     'story_title'     => $r->story->title ?? null,
                     'quiz_score'      => $r->quiz_score,
                     'total_questions' => $r->total_questions,
+                    'word_reading_score_pct'  => $r->word_reading_score_pct ?? $r->oral_fluency_accuracy,
+                    'comprehension_score_pct' => $comp($r),
                     'wpm'             => $r->wpm,
                     'time_on_task'    => $r->time_on_task,
                     'date'            => optional($r->completed_at ?? $r->created_at)->toDateString(),
